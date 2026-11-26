@@ -30,6 +30,14 @@ jobs:
         with:
           gradle-version: '8.7'
 
+      - name: Normalize debug signing keystore alias
+        run: |
+          SRC_ALIAS=$(keytool -list -keystore app/stravo-debug.p12 -storetype PKCS12 -storepass android | grep -i "PrivateKeyEntry" | head -n 1 | cut -d',' -f1 | xargs)
+          echo "Detected keystore alias: $SRC_ALIAS"
+          if [ -n "$SRC_ALIAS" ] && [ "$SRC_ALIAS" != "androiddebugkey" ]; then
+            keytool -changealias -keystore app/stravo-debug.p12 -storetype PKCS12 -storepass android -alias "$SRC_ALIAS" -destalias androiddebugkey
+          fi
+
       - name: Build Debug APK
         env:
           INTERVALS_API_KEY: ${{ secrets.INTERVALS_API_KEY }}

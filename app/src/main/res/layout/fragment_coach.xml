@@ -61,6 +61,20 @@
         android:clipToPadding="false"
         android:padding="12dp" />
 
+    <TextView
+        android:id="@+id/tvCoachStatus"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/bg_card"
+        android:paddingStart="14dp"
+        android:paddingTop="4dp"
+        android:paddingEnd="14dp"
+        android:paddingBottom="2dp"
+        android:text=""
+        android:textColor="@color/brand_blue_primary"
+        android:textSize="12sp"
+        android:visibility="gone" />
+
     <ProgressBar
         android:id="@+id/progressCoach"
         style="?android:attr/progressBarStyleHorizontal"

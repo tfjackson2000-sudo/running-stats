@@ -31,14 +31,27 @@ android {
         applicationId "com.runningstats.app"
         minSdk 26
         targetSdk 34
-        versionCode 1
-        versionName "1.0.0"
+        versionCode (System.getenv("GITHUB_RUN_NUMBER") ? System.getenv("GITHUB_RUN_NUMBER").toInteger() : 1)
+        versionName "1.0.${System.getenv("GITHUB_RUN_NUMBER") ?: '0'}"
 
         buildConfigField "String", "DEFAULT_INTERVALS_API_KEY", "\"${escapeBuildConfig(getConfigValue('INTERVALS_API_KEY'))}\""
         buildConfigField "String", "DEFAULT_GEMINI_API_KEY", "\"${escapeBuildConfig(getConfigValue('GEMINI_API_KEY'))}\""
     }
 
+    signingConfigs {
+        debug {
+            storeFile file('stravo-debug.p12')
+            storeType 'PKCS12'
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
+    }
+
     buildTypes {
+        debug {
+            signingConfig signingConfigs.debug
+        }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'

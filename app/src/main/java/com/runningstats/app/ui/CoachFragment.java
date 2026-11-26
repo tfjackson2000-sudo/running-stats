@@ -7,6 +7,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ProgressBar;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -38,6 +39,7 @@ public class CoachFragment extends Fragment implements RefreshableFragment {
     private TextInputEditText etCoachMessage;
     private MaterialButton btnSendCoach;
     private ProgressBar progressCoach;
+    private TextView tvCoachStatus;
 
     private ExecutorService executor;
     private Handler mainHandler;
@@ -60,6 +62,7 @@ public class CoachFragment extends Fragment implements RefreshableFragment {
         etCoachMessage = view.findViewById(R.id.etCoachMessage);
         btnSendCoach = view.findViewById(R.id.btnSendCoach);
         progressCoach = view.findViewById(R.id.progressCoach);
+        tvCoachStatus = view.findViewById(R.id.tvCoachStatus);
 
         adapter = new ChatAdapter(messages);
         LinearLayoutManager lm = new LinearLayoutManager(requireContext());
@@ -135,6 +138,8 @@ public class CoachFragment extends Fragment implements RefreshableFragment {
 
         isSending = true;
         progressCoach.setVisibility(View.VISIBLE);
+        tvCoachStatus.setVisibility(View.VISIBLE);
+        tvCoachStatus.setText("Preparing your running stats...");
         btnSendCoach.setEnabled(false);
 
         List<ChatMessage> snapshot = new ArrayList<>(messages);
@@ -144,12 +149,19 @@ public class CoachFragment extends Fragment implements RefreshableFragment {
             try {
                 List<RunActivity> allRuns = host.getDb().getAllRuns();
                 String context = StatsCalculator.buildAiCoachContext(allRuns, useMiles);
-                String reply = GeminiClient.askCoach(host.getPrefs(), context, snapshot);
+                String reply = GeminiClient.askCoach(host.getPrefs(), context, snapshot, statusMsg ->
+                        mainHandler.post(() -> {
+                            if (isAdded()) {
+                                tvCoachStatus.setText(statusMsg);
+                            }
+                        })
+                );
 
                 mainHandler.post(() -> {
                     if (!isAdded()) return;
                     isSending = false;
                     progressCoach.setVisibility(View.GONE);
+                    tvCoachStatus.setVisibility(View.GONE);
                     btnSendCoach.setEnabled(true);
                     messages.add(new ChatMessage(false, reply, System.currentTimeMillis()));
                     adapter.notifyItemInserted(messages.size() - 1);
@@ -160,6 +172,7 @@ public class CoachFragment extends Fragment implements RefreshableFragment {
                     if (!isAdded()) return;
                     isSending = false;
                     progressCoach.setVisibility(View.GONE);
+                    tvCoachStatus.setVisibility(View.GONE);
                     btnSendCoach.setEnabled(true);
                     messages.add(new ChatMessage(false, "Could not reach Gemini: " + e.getMessage(), System.currentTimeMillis()));
                     adapter.notifyItemInserted(messages.size() - 1);

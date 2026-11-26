@@ -30,9 +30,10 @@ local.properties
 .cxx/
 .externalNativeBuild/
 
-# Keystore files
+# Keystore files (keep fixed app/stravo-debug.p12 so APK updates preserve user data)
 *.jks
 *.keystore
+!app/stravo-debug.p12
 
 # OS / Misc
 .DS_Store
