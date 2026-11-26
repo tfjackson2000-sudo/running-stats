@@ -25,6 +25,7 @@ import com.runningstats.app.data.GeminiClient;
 import com.runningstats.app.data.StatsCalculator;
 import com.runningstats.app.model.ChatMessage;
 import com.runningstats.app.model.RunActivity;
+import com.runningstats.app.model.WellnessEntry;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -70,6 +71,8 @@ public class CoachFragment extends Fragment implements RefreshableFragment {
         rvChat.setLayoutManager(lm);
         rvChat.setAdapter(adapter);
 
+        bindQuickChip(view.findViewById(R.id.chipPromptHrPace),
+                "Analyze my heart rate compared to pace over time, my aerobic efficiency, and my Garmin VO2 Max / resting HR / HRV. Am I getting aerobically fitter?");
         bindQuickChip(view.findViewById(R.id.chipPromptMonth),
                 "Review my running over the last 4 weeks. What looks strong and what should I adjust?");
         bindQuickChip(view.findViewById(R.id.chipPromptYears),
@@ -148,7 +151,8 @@ public class CoachFragment extends Fragment implements RefreshableFragment {
         executor.execute(() -> {
             try {
                 List<RunActivity> allRuns = host.getDb().getAllRuns();
-                String context = StatsCalculator.buildAiCoachContext(allRuns, useMiles);
+                List<WellnessEntry> allWellness = host.getDb().getAllWellness();
+                String context = StatsCalculator.buildAiCoachContext(allRuns, allWellness, useMiles);
                 String reply = GeminiClient.askCoach(host.getPrefs(), context, snapshot, statusMsg ->
                         mainHandler.post(() -> {
                             if (isAdded()) {

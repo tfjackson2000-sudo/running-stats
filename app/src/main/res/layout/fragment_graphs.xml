@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/bg_screen"
@@ -10,6 +11,49 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical">
+
+        <!-- Timeframe Selector Strip -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:background="@color/bg_card"
+            android:orientation="vertical"
+            android:paddingStart="16dp"
+            android:paddingTop="10dp"
+            android:paddingEnd="16dp"
+            android:paddingBottom="10dp">
+
+            <com.google.android.material.chip.ChipGroup
+                android:id="@+id/chipGroupChartRange"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:selectionRequired="true"
+                app:singleSelection="true">
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/chipRange12m"
+                    style="@style/Widget.Material3.Chip.Filter"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:checked="true"
+                    android:text="12 Months" />
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/chipRange2y"
+                    style="@style/Widget.Material3.Chip.Filter"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="2 Years" />
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/chipRangeAll"
+                    style="@style/Widget.Material3.Chip.Filter"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="All Years" />
+            </com.google.android.material.chip.ChipGroup>
+        </LinearLayout>
 
         <TextView
             android:id="@+id/tvGraphsEmpty"
@@ -24,7 +68,135 @@
             android:textSize="14sp"
             android:visibility="gone" />
 
-        <!-- Chart 1: Yearly Distance -->
+        <!-- FEATURED CHART 1: Heart Rate vs Pace Over Time -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:background="@color/bg_card"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <TextView
+                android:id="@+id/tvPaceHrTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Heart Rate vs. Pace Over Time"
+                android:textColor="@color/text_primary"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text="Blue = Pace (higher is faster) • Indigo = Avg HR (lower is easier)"
+                android:textColor="@color/text_secondary"
+                android:textSize="12sp" />
+
+            <com.github.mikephil.charting.charts.LineChart
+                android:id="@+id/chartPaceHr"
+                android:layout_width="match_parent"
+                android:layout_height="240dp"
+                android:layout_marginTop="10dp" />
+        </LinearLayout>
+
+        <!-- FEATURED CHART 2: Aerobic Efficiency (Pace/HR Ratio) Over Time -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:background="@color/bg_card"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Aerobic Efficiency (Meters per Heartbeat)"
+                android:textColor="@color/text_primary"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tvEfficiencySummary"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text="Upward trend = running faster for the same heart rate."
+                android:textColor="@color/brand_blue_primary"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+
+            <com.github.mikephil.charting.charts.LineChart
+                android:id="@+id/chartEfficiency"
+                android:layout_width="match_parent"
+                android:layout_height="220dp"
+                android:layout_marginTop="10dp" />
+        </LinearLayout>
+
+        <!-- CARD 3: Pace by Heart Rate Zone (Recent 90d vs Prior) -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:background="@color/bg_card"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Pace by Heart Rate Zone (Last 90d vs Prior)"
+                android:textColor="@color/text_primary"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tvHrZoneBreakdown"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:lineSpacingExtra="5dp"
+                android:text="Sync runs with heart rate data to compare your pace at each effort level."
+                android:textColor="@color/text_secondary"
+                android:textSize="13sp" />
+        </LinearLayout>
+
+        <!-- CHART 4: Garmin VO2 Max & Resting HR Over Time -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:background="@color/bg_card"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Garmin VO2 Max &amp; Resting HR"
+                android:textColor="@color/text_primary"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tvWellnessChartNote"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text="Blue = VO2 Max (left) • Cyan = Resting HR bpm (right)"
+                android:textColor="@color/text_secondary"
+                android:textSize="12sp" />
+
+            <com.github.mikephil.charting.charts.LineChart
+                android:id="@+id/chartWellness"
+                android:layout_width="match_parent"
+                android:layout_height="220dp"
+                android:layout_marginTop="10dp" />
+        </LinearLayout>
+
+        <!-- CHART 5: Yearly Distance -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -49,7 +221,7 @@
                 android:layout_marginTop="10dp" />
         </LinearLayout>
 
-        <!-- Chart 2: Cumulative Year-over-Year -->
+        <!-- CHART 6: Cumulative Year-over-Year -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -74,11 +246,10 @@
                 android:layout_marginTop="10dp" />
         </LinearLayout>
 
-        <!-- Chart 3: Last 12 Months Distance -->
+        <!-- CHART 7: Monthly Distance -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="8dp"
             android:background="@color/bg_card"
             android:orientation="vertical"
             android:padding="16dp">
@@ -87,7 +258,7 @@
                 android:id="@+id/tvMonthlyTitle"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Monthly Distance (Last 12 Months)"
+                android:text="Monthly Distance"
                 android:textColor="@color/text_primary"
                 android:textSize="16sp"
                 android:textStyle="bold" />
@@ -96,38 +267,6 @@
                 android:id="@+id/chartMonthly"
                 android:layout_width="match_parent"
                 android:layout_height="220dp"
-                android:layout_marginTop="10dp" />
-        </LinearLayout>
-
-        <!-- Chart 4: Pace vs Heart Rate Trend -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:background="@color/bg_card"
-            android:orientation="vertical"
-            android:padding="16dp">
-
-            <TextView
-                android:id="@+id/tvPaceHrTitle"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Avg Pace &amp; Heart Rate (12 Months)"
-                android:textColor="@color/text_primary"
-                android:textSize="16sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
-                android:text="Faster (lower) pace with steady or lower HR shows improving aerobic fitness."
-                android:textColor="@color/text_secondary"
-                android:textSize="12sp" />
-
-            <com.github.mikephil.charting.charts.LineChart
-                android:id="@+id/chartPaceHr"
-                android:layout_width="match_parent"
-                android:layout_height="230dp"
                 android:layout_marginTop="10dp" />
         </LinearLayout>
 

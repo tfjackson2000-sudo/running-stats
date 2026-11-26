@@ -7,6 +7,7 @@ import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
 
 import com.runningstats.app.model.RunActivity;
+import com.runningstats.app.model.WellnessEntry;
 
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -16,9 +17,10 @@ import java.util.Random;
 
 public class RunDatabaseHelper extends SQLiteOpenHelper {
     private static final String DB_NAME = "runstats.db";
-    private static final int DB_VERSION = 1;
+    private static final int DB_VERSION = 2;
 
     private static final String TABLE_RUNS = "runs";
+    private static final String TABLE_WELLNESS = "wellness";
 
     public RunDatabaseHelper(Context context) {
         super(context.getApplicationContext(), DB_NAME, null, DB_VERSION);
@@ -44,12 +46,30 @@ public class RunDatabaseHelper extends SQLiteOpenHelper {
                         ")"
         );
         db.execSQL("CREATE INDEX idx_runs_start_epoch ON " + TABLE_RUNS + " (start_epoch DESC)");
+        createWellnessTable(db);
+    }
+
+    private void createWellnessTable(SQLiteDatabase db) {
+        db.execSQL(
+                "CREATE TABLE IF NOT EXISTS " + TABLE_WELLNESS + " (" +
+                        "date TEXT PRIMARY KEY, " +
+                        "vo2max REAL NOT NULL, " +
+                        "resting_hr REAL NOT NULL, " +
+                        "hrv REAL NOT NULL, " +
+                        "sleep_secs INTEGER NOT NULL, " +
+                        "sleep_score REAL NOT NULL, " +
+                        "weight REAL NOT NULL, " +
+                        "is_sample INTEGER NOT NULL DEFAULT 0" +
+                        ")"
+        );
     }
 
     @Override
     public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
-        db.execSQL("DROP TABLE IF EXISTS " + TABLE_RUNS);
-        onCreate(db);
+        // Non-destructive upgrade so users keep all previously synced runs on app updates
+        if (oldVersion < 2) {
+            createWellnessTable(db);
+        }
     }
 
     public int upsertRuns(List<RunActivity> runs) {
@@ -161,22 +181,111 @@ public class RunDatabaseHelper extends SQLiteOpenHelper {
         }
     }
 
+    public int upsertWellness(List<WellnessEntry> entries) {
+        if (entries == null || entries.isEmpty()) {
+            return 0;
+        }
+        SQLiteDatabase db = getWritableDatabase();
+        db.beginTransaction();
+        int count = 0;
+        try {
+            for (WellnessEntry w : entries) {
+                if (!w.hasAnyData() || w.date.isEmpty()) continue;
+                ContentValues cv = new ContentValues();
+                cv.put("date", w.date);
+                cv.put("vo2max", w.vo2max);
+                cv.put("resting_hr", w.restingHr);
+                cv.put("hrv", w.hrv);
+                cv.put("sleep_secs", w.sleepSecs);
+                cv.put("sleep_score", w.sleepScore);
+                cv.put("weight", w.weight);
+                cv.put("is_sample", w.isSample ? 1 : 0);
+                db.insertWithOnConflict(TABLE_WELLNESS, null, cv, SQLiteDatabase.CONFLICT_REPLACE);
+                count++;
+            }
+            db.setTransactionSuccessful();
+        } finally {
+            db.endTransaction();
+        }
+        return count;
+    }
+
+    public List<WellnessEntry> getAllWellness() {
+        List<WellnessEntry> results = new ArrayList<>();
+        SQLiteDatabase db = getReadableDatabase();
+        Cursor cursor = db.query(
+                TABLE_WELLNESS,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "date DESC"
+        );
+        try {
+            int idxDate = cursor.getColumnIndexOrThrow("date");
+            int idxVo2 = cursor.getColumnIndexOrThrow("vo2max");
+            int idxRhr = cursor.getColumnIndexOrThrow("resting_hr");
+            int idxHrv = cursor.getColumnIndexOrThrow("hrv");
+            int idxSleepSecs = cursor.getColumnIndexOrThrow("sleep_secs");
+            int idxSleepScore = cursor.getColumnIndexOrThrow("sleep_score");
+            int idxWeight = cursor.getColumnIndexOrThrow("weight");
+            int idxSample = cursor.getColumnIndexOrThrow("is_sample");
+
+            while (cursor.moveToNext()) {
+                results.add(new WellnessEntry(
+                        cursor.getString(idxDate),
+                        cursor.getDouble(idxVo2),
+                        cursor.getDouble(idxRhr),
+                        cursor.getDouble(idxHrv),
+                        cursor.getInt(idxSleepSecs),
+                        cursor.getDouble(idxSleepScore),
+                        cursor.getDouble(idxWeight),
+                        cursor.getInt(idxSample) == 1
+                ));
+            }
+        } finally {
+            cursor.close();
+        }
+        return results;
+    }
+
+    public String getNewestRealWellnessDate() {
+        SQLiteDatabase db = getReadableDatabase();
+        Cursor cursor = db.rawQuery("SELECT MAX(date) FROM " + TABLE_WELLNESS + " WHERE is_sample = 0", null);
+        try {
+            if (cursor.moveToFirst() && !cursor.isNull(0)) {
+                return cursor.getString(0);
+            }
+            return "";
+        } finally {
+            cursor.close();
+        }
+    }
+
     public void deleteSampleRuns() {
         SQLiteDatabase db = getWritableDatabase();
         db.delete(TABLE_RUNS, "id < 0", null);
     }
 
+    public void deleteSampleWellness() {
+        SQLiteDatabase db = getWritableDatabase();
+        db.delete(TABLE_WELLNESS, "is_sample = 1", null);
+    }
+
     public void clearAllRuns() {
         SQLiteDatabase db = getWritableDatabase();
         db.delete(TABLE_RUNS, null, null);
+        db.delete(TABLE_WELLNESS, null, null);
     }
 
     /**
-     * Generates 3 years of realistic sample runs with negative IDs so the user can preview
-     * all dashboards, multi-year charts, and AI coaching before connecting Strava.
+     * Generates 3 years of realistic sample runs AND wellness data (VO2 Max, Resting HR, HRV, Sleep)
+     * so users can preview every chart, PR table, and AI coaching before syncing.
      */
     public int seedSampleRuns() {
         List<RunActivity> sample = new ArrayList<>();
+        List<WellnessEntry> sampleWellness = new ArrayList<>();
         Random rng = new Random(42L);
         LocalDate today = LocalDate.now();
         LocalDate start = today.minusYears(3).plusDays(7);
@@ -192,12 +301,22 @@ public class RunDatabaseHelper extends SQLiteOpenHelper {
         int dayIndex = 0;
 
         while (!date.isAfter(today)) {
-            int dow = date.getDayOfWeek().getValue(); // 1=Mon .. 7=Sun
+            int dow = date.getDayOfWeek().getValue();
             double progress = totalDays > 0 ? (double) dayIndex / totalDays : 1.0;
 
-            // Slight gradual fitness improvement over 3 years
-            double baseEasyPaceSecPerKm = 345.0 - (24.0 * progress); // 5:45/km -> 5:21/km
-            double baseHr = 152.0 - (6.0 * progress);
+            double baseEasyPaceSecPerKm = 355.0 - (28.0 * progress); // 5:55/km -> 5:27/km
+            double baseHr = 148.0 - (10.0 * progress); // 148 bpm -> 138 bpm
+
+            // Daily sample wellness entry
+            double vo2 = 48.0 + (5.2 * progress) + (rng.nextGaussian() * 0.4);
+            double rhr = 55.0 - (6.0 * progress) + (rng.nextGaussian() * 1.5);
+            double hrv = 52.0 + (14.0 * progress) + (rng.nextGaussian() * 5.0);
+            int sleepSecs = (int) ((7.3 + rng.nextGaussian() * 0.65) * 3600.0);
+            double sleepScore = Math.max(55.0, Math.min(96.0, 79.0 + rng.nextGaussian() * 8.0));
+            double weight = 76.0 - (2.0 * progress) + (rng.nextGaussian() * 0.4);
+            sampleWellness.add(new WellnessEntry(
+                    date.toString(), vo2, rhr, hrv, Math.max(16000, sleepSecs), sleepScore, weight, true
+            ));
 
             boolean shouldRun = false;
             String kind = "easy";
@@ -222,7 +341,7 @@ public class RunDatabaseHelper extends SQLiteOpenHelper {
                 String sportType = "Run";
 
                 if ("long".equals(kind)) {
-                    distKm = 13.0 + rng.nextDouble() * 9.0 + (2.5 * progress);
+                    distKm = 13.0 + rng.nextDouble() * 9.5 + (2.5 * progress);
                     paceSecPerKm = baseEasyPaceSecPerKm + 8.0 + (rng.nextGaussian() * 7.0);
                     avgHr = baseHr + 4.0 + (rng.nextGaussian() * 4.0);
                     elevM = distKm * (7.0 + rng.nextDouble() * 8.0);
@@ -233,13 +352,13 @@ public class RunDatabaseHelper extends SQLiteOpenHelper {
                         paceSecPerKm += 22.0;
                     }
                 } else if ("tempo".equals(kind)) {
-                    distKm = 7.5 + rng.nextDouble() * 4.5;
-                    paceSecPerKm = baseEasyPaceSecPerKm - 34.0 + (rng.nextGaussian() * 6.0);
-                    avgHr = baseHr + 17.0 + (rng.nextGaussian() * 3.5);
+                    distKm = 5.1 + rng.nextDouble() * 6.0;
+                    paceSecPerKm = baseEasyPaceSecPerKm - 38.0 + (rng.nextGaussian() * 6.0);
+                    avgHr = baseHr + 18.0 + (rng.nextGaussian() * 3.5);
                     elevM = distKm * (4.0 + rng.nextDouble() * 5.0);
                     name = tempoNames[rng.nextInt(tempoNames.length)];
                 } else {
-                    distKm = 5.0 + rng.nextDouble() * 5.0;
+                    distKm = 5.2 + rng.nextDouble() * 5.2;
                     paceSecPerKm = baseEasyPaceSecPerKm + (rng.nextGaussian() * 9.0);
                     avgHr = baseHr + (rng.nextGaussian() * 4.5);
                     elevM = distKm * (4.5 + rng.nextDouble() * 5.5);
@@ -250,7 +369,7 @@ public class RunDatabaseHelper extends SQLiteOpenHelper {
                 int elapsedSec = movingSec + rng.nextInt(90);
                 double maxHr = Math.min(196.0, avgHr + 12.0 + rng.nextDouble() * 10.0);
                 double cadenceHalf = 84.0 + rng.nextDouble() * 6.0;
-                double suffer = Math.max(15.0, (movingSec / 60.0) * ((avgHr - 110.0) / 35.0));
+                double suffer = Math.max(15.0, (movingSec / 60.0) * ((avgHr - 105.0) / 35.0));
 
                 long epoch = date.atTime(7, 15).atZone(zone).toEpochSecond();
                 String dateLocal = date.toString() + "T07:15:00Z";
@@ -276,6 +395,7 @@ public class RunDatabaseHelper extends SQLiteOpenHelper {
             dayIndex++;
         }
 
+        upsertWellness(sampleWellness);
         return upsertRuns(sample);
     }
 }

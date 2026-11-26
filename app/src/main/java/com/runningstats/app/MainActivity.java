@@ -149,7 +149,19 @@ public class MainActivity extends AppCompatActivity {
                             }
                         })
                 );
-                String doneMsg = "Synced " + synced + " run" + (synced == 1 ? "" : "s") + " from Intervals.icu.";
+                int wellnessSynced = 0;
+                try {
+                    wellnessSynced = IntervalsClient.syncWellness(prefs, db, fullHistory, msg ->
+                            mainHandler.post(() -> {
+                                if (callback != null) {
+                                    callback.onProgress(msg);
+                                }
+                            })
+                    );
+                } catch (Exception ignored) {
+                }
+                String doneMsg = "Synced " + synced + " run" + (synced == 1 ? "" : "s")
+                        + (wellnessSynced > 0 ? " & " + wellnessSynced + " health days." : " from Intervals.icu.");
                 mainHandler.post(() -> {
                     isSyncing = false;
                     notifyDataChanged();

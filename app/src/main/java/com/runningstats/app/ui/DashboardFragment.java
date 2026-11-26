@@ -19,6 +19,7 @@ import com.runningstats.app.R;
 import com.runningstats.app.data.PrefsManager;
 import com.runningstats.app.data.StatsCalculator;
 import com.runningstats.app.model.RunActivity;
+import com.runningstats.app.model.WellnessEntry;
 import com.runningstats.app.util.FormatUtils;
 
 import java.time.LocalDate;
@@ -41,6 +42,11 @@ public class DashboardFragment extends Fragment implements RefreshableFragment {
     private TextView tvStatRuns;
     private TextView tvStatPace;
     private TextView tvStatHrElev;
+    private TextView tvHealthVo2;
+    private TextView tvHealthRhr;
+    private TextView tvHealthHrv;
+    private TextView tvHealthSleep;
+    private TextView tvPersonalBests;
     private TextView tvLoadSummary;
     private TextView tvHighlights;
 
@@ -70,6 +76,11 @@ public class DashboardFragment extends Fragment implements RefreshableFragment {
         tvStatRuns = view.findViewById(R.id.tvStatRuns);
         tvStatPace = view.findViewById(R.id.tvStatPace);
         tvStatHrElev = view.findViewById(R.id.tvStatHrElev);
+        tvHealthVo2 = view.findViewById(R.id.tvHealthVo2);
+        tvHealthRhr = view.findViewById(R.id.tvHealthRhr);
+        tvHealthHrv = view.findViewById(R.id.tvHealthHrv);
+        tvHealthSleep = view.findViewById(R.id.tvHealthSleep);
+        tvPersonalBests = view.findViewById(R.id.tvPersonalBests);
         tvLoadSummary = view.findViewById(R.id.tvLoadSummary);
         tvHighlights = view.findViewById(R.id.tvHighlights);
 
@@ -89,7 +100,7 @@ public class DashboardFragment extends Fragment implements RefreshableFragment {
             MainActivity host = getHostActivity();
             if (host == null) return;
             int count = host.getDb().seedSampleRuns();
-            Toast.makeText(requireContext(), "Loaded " + count + " sample runs across 3 years!", Toast.LENGTH_SHORT).show();
+            Toast.makeText(requireContext(), "Loaded " + count + " sample runs & 3 years of health data!", Toast.LENGTH_SHORT).show();
             refreshData();
         });
 
@@ -117,7 +128,7 @@ public class DashboardFragment extends Fragment implements RefreshableFragment {
         }
         if (!host.getPrefs().isIntervalsConnected()) {
             swipeRefresh.setRefreshing(false);
-            Toast.makeText(requireContext(), "Add your free Intervals.icu key (or import a Garmin CSV) in You → Settings.", Toast.LENGTH_SHORT).show();
+            Toast.makeText(requireContext(), "Add your free Intervals.icu key in You → Settings.", Toast.LENGTH_SHORT).show();
             host.navigateToTab(R.id.nav_settings);
             return;
         }
@@ -148,6 +159,7 @@ public class DashboardFragment extends Fragment implements RefreshableFragment {
         PrefsManager prefs = host.getPrefs();
         boolean useMiles = prefs.useMiles();
         List<RunActivity> allRuns = host.getDb().getAllRuns();
+        List<WellnessEntry> allWellness = host.getDb().getAllWellness();
 
         // Weekly Snapshot (last 7 days)
         LocalDate today = LocalDate.now();
@@ -177,7 +189,7 @@ public class DashboardFragment extends Fragment implements RefreshableFragment {
                     allRuns.size(),
                     FormatUtils.formatTimestamp(prefs.getLastSyncMs())
             ));
-            tvSyncSubtitle.setText("Pull down anytime to fetch your newest Garmin runs.");
+            tvSyncSubtitle.setText("Pull down anytime to fetch your newest Garmin runs & health.");
             btnSyncNow.setText("Sync");
         } else {
             tvSyncStatus.setText(allRuns.isEmpty()
@@ -198,6 +210,55 @@ public class DashboardFragment extends Fragment implements RefreshableFragment {
         String elevPart = "+" + FormatUtils.formatElevation(summary.totalElevationMeters, useMiles);
         tvStatHrElev.setText(hrPart + "\n" + elevPart);
 
+        // Garmin Health & Readiness
+        StatsCalculator.WellnessSummary ws = StatsCalculator.computeWellnessSummary(allWellness);
+        tvHealthVo2.setText(ws.latestVo2max > 0 ? String.format(Locale.US, "%.1f", ws.latestVo2max) : "--");
+        if (ws.latestRestingHr > 0) {
+            String avgPart = ws.avg30dRestingHr > 0 ? String.format(Locale.US, " (30d: %.0f)", ws.avg30dRestingHr) : "";
+            tvHealthRhr.setText(String.format(Locale.US, "%.0f bpm%s", ws.latestRestingHr, avgPart));
+        } else {
+            tvHealthRhr.setText("--");
+        }
+        if (ws.latestHrv > 0) {
+            String avgPart = ws.avg30dHrv > 0 ? String.format(Locale.US, " (30d: %.0f)", ws.avg30dHrv) : "";
+            tvHealthHrv.setText(String.format(Locale.US, "%.0f ms%s", ws.latestHrv, avgPart));
+        } else {
+            tvHealthHrv.setText("--");
+        }
+        if (ws.latestSleepScore > 0 || ws.avg30dSleepHours > 0) {
+            StringBuilder sleepSb = new StringBuilder();
+            if (ws.avg30dSleepHours > 0) {
+                sleepSb.append(String.format(Locale.US, "%.1fh", ws.avg30dSleepHours));
+            }
+            if (ws.latestSleepScore > 0) {
+                if (sleepSb.length() > 0) sleepSb.append(" • ");
+                sleepSb.append(String.format(Locale.US, "Score %.0f", ws.latestSleepScore));
+            }
+            tvHealthSleep.setText(sleepSb.toString());
+        } else {
+            tvHealthSleep.setText("--");
+        }
+
+        // Personal Bests
+        List<StatsCalculator.BestEffort> prs = StatsCalculator.computePersonalBests(allRuns);
+        if (prs.isEmpty()) {
+            tvPersonalBests.setText("Sync runs of 5K or longer to see your all-time Personal Bests.");
+        } else {
+            StringBuilder prSb = new StringBuilder();
+            for (int i = 0; i < prs.size(); i++) {
+                StatsCalculator.BestEffort pr = prs.get(i);
+                double paceUnit = useMiles ? pr.paceSecPerKm * 1.609344 : pr.paceSecPerKm;
+                if (i > 0) prSb.append("\n");
+                prSb.append(String.format(Locale.US, "• %s: %s (%s) — %s",
+                        pr.label,
+                        FormatUtils.formatDuration(pr.estimatedSeconds),
+                        FormatUtils.formatPace(paceUnit, useMiles),
+                        FormatUtils.formatDate(pr.sourceRun.getLocalDate())));
+            }
+            tvPersonalBests.setText(prSb.toString());
+        }
+
+        // Training Load & Insights
         if (allRuns.isEmpty()) {
             tvLoadSummary.setText("Sync runs or tap Load Sample to see your volume ramp, streaks, and aerobic efficiency.");
         } else {
@@ -231,6 +292,7 @@ public class DashboardFragment extends Fragment implements RefreshableFragment {
             tvLoadSummary.setText(loadSb.toString());
         }
 
+        // Period Highlights
         if (periodRuns.isEmpty()) {
             tvHighlights.setText("No runs recorded in this period yet.");
         } else {

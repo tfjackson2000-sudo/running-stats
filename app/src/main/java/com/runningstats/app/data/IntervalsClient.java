@@ -3,6 +3,7 @@ package com.runningstats.app.data;
 import android.util.Base64;
 
 import com.runningstats.app.model.RunActivity;
+import com.runningstats.app.model.WellnessEntry;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -24,8 +25,7 @@ import java.util.Locale;
 
 /**
  * Client for the free Intervals.icu personal REST API (https://intervals.icu).
- * Intervals.icu includes a free official Garmin Connect integration that auto-syncs
- * Garmin runs and exposes them via a simple personal API key (no subscription required).
+ * Syncs both Garmin running activities AND Garmin wellness data (VO2 Max, Resting HR, HRV, Sleep, Weight).
  */
 public class IntervalsClient {
     private static final String BASE_URL = "https://intervals.icu/api/v1/athlete/0";
@@ -34,9 +34,6 @@ public class IntervalsClient {
         void onProgress(String message);
     }
 
-    /**
-     * Verifies the personal API key and saves the athlete's display name.
-     */
     public static String verifyAndFetchAthleteName(PrefsManager prefs) throws Exception {
         String apiKey = prefs.getIntervalsApiKey();
         if (apiKey.isEmpty()) {
@@ -57,12 +54,6 @@ public class IntervalsClient {
         return name;
     }
 
-    /**
-     * Syncs running activities from Intervals.icu into the local SQLite database.
-     *
-     * @param fullHistory if true, fetches all years back to 2012; otherwise fetches from newest run minus 3 days.
-     * @return number of running activities saved.
-     */
     public static int syncRuns(
             PrefsManager prefs,
             RunDatabaseHelper db,
@@ -95,7 +86,7 @@ public class IntervalsClient {
                 if (listener != null) {
                     listener.onProgress("Syncing runs since " + oldest + "...");
                 }
-                List<RunActivity> fetched = fetchRange(apiKey, oldest, today);
+                List<RunActivity> fetched = fetchRunsRange(apiKey, oldest, today);
                 if (!fetched.isEmpty()) {
                     db.deleteSampleRuns();
                     totalRunsSaved += db.upsertRuns(fetched);
@@ -105,7 +96,6 @@ public class IntervalsClient {
             }
         }
 
-        // Full history sync in 2-year chunks from 2012 through today
         int startYear = 2012;
         int endYear = today.getYear();
         for (int yr = endYear; yr >= startYear; yr -= 2) {
@@ -114,10 +104,10 @@ public class IntervalsClient {
             LocalDate newest = (yr == endYear) ? today : LocalDate.of(yr, 12, 31);
 
             if (listener != null) {
-                listener.onProgress("Syncing " + chunkStart + "–" + yr + " (" + totalRunsSaved + " runs saved)...");
+                listener.onProgress("Syncing runs " + chunkStart + "–" + yr + " (" + totalRunsSaved + " saved)...");
             }
 
-            List<RunActivity> chunk = fetchRange(apiKey, oldest, newest);
+            List<RunActivity> chunk = fetchRunsRange(apiKey, oldest, newest);
             if (!chunk.isEmpty()) {
                 if (!clearedSample) {
                     db.deleteSampleRuns();
@@ -131,7 +121,67 @@ public class IntervalsClient {
         return totalRunsSaved;
     }
 
-    private static List<RunActivity> fetchRange(String apiKey, LocalDate oldest, LocalDate newest) throws Exception {
+    /**
+     * Syncs daily Garmin wellness entries (VO2 Max, Resting HR, HRV, Sleep, Weight) from Intervals.icu.
+     */
+    public static int syncWellness(
+            PrefsManager prefs,
+            RunDatabaseHelper db,
+            boolean fullHistory,
+            SyncProgressListener listener
+    ) throws Exception {
+        String apiKey = prefs.getIntervalsApiKey();
+        if (apiKey.isEmpty()) {
+            return 0;
+        }
+
+        LocalDate today = LocalDate.now();
+        int totalSaved = 0;
+        boolean clearedSample = false;
+
+        if (!fullHistory) {
+            String newestDateStr = db.getNewestRealWellnessDate();
+            if (newestDateStr != null && !newestDateStr.isEmpty()) {
+                try {
+                    LocalDate oldest = LocalDate.parse(newestDateStr.substring(0, 10)).minusDays(7);
+                    if (listener != null) {
+                        listener.onProgress("Syncing Garmin health & VO2 Max...");
+                    }
+                    List<WellnessEntry> fetched = fetchWellnessRange(apiKey, oldest, today);
+                    if (!fetched.isEmpty()) {
+                        db.deleteSampleWellness();
+                        totalSaved += db.upsertWellness(fetched);
+                    }
+                    return totalSaved;
+                } catch (Exception ignored) {
+                }
+            }
+        }
+
+        int startYear = 2016;
+        int endYear = today.getYear();
+        for (int yr = endYear; yr >= startYear; yr -= 2) {
+            int chunkStart = Math.max(startYear, yr - 1);
+            LocalDate oldest = LocalDate.of(chunkStart, 1, 1);
+            LocalDate newest = (yr == endYear) ? today : LocalDate.of(yr, 12, 31);
+
+            if (listener != null) {
+                listener.onProgress("Syncing Garmin wellness " + chunkStart + "–" + yr + "...");
+            }
+
+            List<WellnessEntry> chunk = fetchWellnessRange(apiKey, oldest, newest);
+            if (!chunk.isEmpty()) {
+                if (!clearedSample) {
+                    db.deleteSampleWellness();
+                    clearedSample = true;
+                }
+                totalSaved += db.upsertWellness(chunk);
+            }
+        }
+        return totalSaved;
+    }
+
+    private static List<RunActivity> fetchRunsRange(String apiKey, LocalDate oldest, LocalDate newest) throws Exception {
         String url = BASE_URL + "/activities?oldest=" + oldest + "&newest=" + newest;
         String body = getWithBasicAuth(url, apiKey);
         JSONArray array = new JSONArray(body);
@@ -140,7 +190,6 @@ public class IntervalsClient {
         for (int i = 0; i < array.length(); i++) {
             JSONObject item = array.getJSONObject(i);
 
-            // Skip placeholder/empty entries
             double distance = optDoubleSafe(item, "distance", 0.0);
             int movingTime = optIntSafe(item, "moving_time", 0);
             if (distance <= 10.0 && movingTime <= 10) {
@@ -177,6 +226,35 @@ public class IntervalsClient {
             ));
         }
         return runs;
+    }
+
+    private static List<WellnessEntry> fetchWellnessRange(String apiKey, LocalDate oldest, LocalDate newest) throws Exception {
+        String url = BASE_URL + "/wellness?oldest=" + oldest + "&newest=" + newest;
+        String body = getWithBasicAuth(url, apiKey);
+        JSONArray array = new JSONArray(body);
+
+        List<WellnessEntry> list = new ArrayList<>();
+        for (int i = 0; i < array.length(); i++) {
+            JSONObject item = array.getJSONObject(i);
+            String idDate = item.optString("id", "").trim();
+            if (idDate.length() < 10) continue;
+            idDate = idDate.substring(0, 10);
+
+            double vo2max = optDoubleSafe(item, "vo2max", 0.0);
+            double restingHr = optDoubleSafe(item, "restingHR", 0.0);
+            double hrv = optDoubleSafe(item, "hrv", 0.0);
+            int sleepSecs = optIntSafe(item, "sleepSecs", 0);
+            double sleepScore = optDoubleSafe(item, "sleepScore", 0.0);
+            double weight = optDoubleSafe(item, "weight", 0.0);
+
+            WellnessEntry entry = new WellnessEntry(
+                    idDate, vo2max, restingHr, hrv, sleepSecs, sleepScore, weight, false
+            );
+            if (entry.hasAnyData()) {
+                list.add(entry);
+            }
+        }
+        return list;
     }
 
     private static boolean isRunningType(String type) {
