@@ -13,9 +13,21 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 
 public class GeminiClient {
+
+    private static final String[] STATIC_FALLBACKS = {
+            "gemini-pro-latest",
+            "gemini-flash-latest",
+            "gemini-flash-lite-latest",
+            "gemini-2.5-flash",
+            "gemini-2.5-flash-lite"
+    };
 
     public static String askCoach(
             PrefsManager prefs,
@@ -29,21 +41,47 @@ public class GeminiClient {
         String primaryModel = prefs.getGeminiModel();
         String payloadJson = buildPayload(systemContext, conversationHistory);
 
-        try {
-            return callModelWithRetry(apiKey, primaryModel, payloadJson);
-        } catch (RetryableApiException e) {
-            // If flagship Pro is temporarily overloaded (503) or rate-limited (429),
-            // automatically fall back to gemini-flash-latest so the coach still answers.
-            if (!"gemini-flash-latest".equalsIgnoreCase(primaryModel)) {
-                try {
-                    String fallbackReply = callModelWithRetry(apiKey, "gemini-flash-latest", payloadJson);
-                    return fallbackReply + "\n\n(Note: " + primaryModel + " was busy, so answered using gemini-flash-latest.)";
-                } catch (Exception ignored) {
-                    // Fall through and throw the original error
-                }
+        // Build ordered candidate list: primary first, then static fallbacks
+        Set<String> tried = new LinkedHashSet<>();
+        List<String> candidates = new ArrayList<>();
+        candidates.add(primaryModel);
+        for (String fb : STATIC_FALLBACKS) {
+            if (!fb.equalsIgnoreCase(primaryModel)) {
+                candidates.add(fb);
             }
-            throw e;
         }
+
+        Exception lastError = null;
+        for (String model : candidates) {
+            if (!tried.add(model.toLowerCase(Locale.US))) continue;
+            try {
+                int attempts = model.equalsIgnoreCase(primaryModel) ? 2 : 1;
+                String reply = callModelWithRetry(apiKey, model, payloadJson, attempts);
+                if (!model.equalsIgnoreCase(primaryModel)) {
+                    return reply + "\n\n(Answered via " + model + " while " + primaryModel + " was busy.)";
+                }
+                return reply;
+            } catch (RetryableApiException e) {
+                lastError = e;
+            }
+        }
+
+        // Last resort: dynamically query available generateContent models for this API key
+        List<String> discovered = fetchAvailableGeminiModels(apiKey);
+        for (String model : discovered) {
+            if (!tried.add(model.toLowerCase(Locale.US))) continue;
+            try {
+                String reply = callModelWithRetry(apiKey, model, payloadJson, 1);
+                return reply + "\n\n(Answered via " + model + " while " + primaryModel + " was busy.)";
+            } catch (RetryableApiException e) {
+                lastError = e;
+            }
+        }
+
+        if (lastError != null) {
+            throw lastError;
+        }
+        throw new IOException("No Gemini model was available to answer right now. Please try again in a minute.");
     }
 
     private static class RetryableApiException extends IOException {
@@ -52,8 +90,7 @@ public class GeminiClient {
         }
     }
 
-    private static String callModelWithRetry(String apiKey, String model, String payloadJson) throws Exception {
-        int maxAttempts = 2;
+    private static String callModelWithRetry(String apiKey, String model, String payloadJson, int maxAttempts) throws Exception {
         for (int attempt = 1; attempt <= maxAttempts; attempt++) {
             try {
                 return callModelOnce(apiKey, model, payloadJson);
@@ -70,6 +107,73 @@ public class GeminiClient {
             }
         }
         throw new IOException("Gemini request failed.");
+    }
+
+    private static List<String> fetchAvailableGeminiModels(String apiKey) {
+        List<String> proModels = new ArrayList<>();
+        List<String> flashModels = new ArrayList<>();
+        List<String> liteModels = new ArrayList<>();
+        HttpURLConnection conn = null;
+        try {
+            conn = (HttpURLConnection) new URL("https://generativelanguage.googleapis.com/v1beta/models?pageSize=100").openConnection();
+            conn.setRequestMethod("GET");
+            conn.setConnectTimeout(10000);
+            conn.setReadTimeout(15000);
+            conn.setRequestProperty("x-goog-api-key", apiKey);
+            if (conn.getResponseCode() < 200 || conn.getResponseCode() >= 300) {
+                return new ArrayList<>();
+            }
+            StringBuilder sb = new StringBuilder();
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    sb.append(line);
+                }
+            }
+            JSONObject root = new JSONObject(sb.toString());
+            JSONArray models = root.optJSONArray("models");
+            if (models == null) return new ArrayList<>();
+
+            for (int i = 0; i < models.length(); i++) {
+                JSONObject m = models.getJSONObject(i);
+                String name = m.optString("name", "");
+                if (name.startsWith("models/")) {
+                    name = name.substring("models/".length());
+                }
+                String lower = name.toLowerCase(Locale.US);
+                if (!lower.startsWith("gemini-") || lower.contains("embedding") || lower.contains("tts")
+                        || lower.contains("image") || lower.contains("vision") || lower.contains("robotics")) {
+                    continue;
+                }
+                JSONArray methods = m.optJSONArray("supportedGenerationMethods");
+                boolean supportsGen = false;
+                if (methods != null) {
+                    for (int j = 0; j < methods.length(); j++) {
+                        if ("generateContent".equals(methods.optString(j))) {
+                            supportsGen = true;
+                            break;
+                        }
+                    }
+                }
+                if (!supportsGen) continue;
+
+                if (lower.contains("lite")) {
+                    liteModels.add(name);
+                } else if (lower.contains("flash")) {
+                    flashModels.add(name);
+                } else if (lower.contains("pro")) {
+                    proModels.add(name);
+                }
+            }
+        } catch (Exception ignored) {
+        } finally {
+            if (conn != null) conn.disconnect();
+        }
+        List<String> ordered = new ArrayList<>();
+        ordered.addAll(flashModels);
+        ordered.addAll(liteModels);
+        ordered.addAll(proModels);
+        return ordered;
     }
 
     private static String buildPayload(String systemContext, List<ChatMessage> conversationHistory) throws Exception {
@@ -135,7 +239,7 @@ public class GeminiClient {
             if (code < 200 || code >= 300) {
                 String errMsg = extractErrorMessage(sb.toString());
                 String fullErr = "Gemini API error (" + code + "): " + errMsg;
-                if (code == 429 || code == 503 || code == 500) {
+                if (code == 404 || code == 429 || code == 503 || code == 500) {
                     throw new RetryableApiException(fullErr);
                 }
                 throw new IOException(fullErr);
