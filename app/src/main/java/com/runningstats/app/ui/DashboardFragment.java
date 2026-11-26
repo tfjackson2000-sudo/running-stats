@@ -1,0 +1,240 @@
+package com.runningstats.app.ui;
+
+import android.os.Bundle;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.TextView;
+import android.widget.Toast;
+
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.fragment.app.Fragment;
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
+
+import com.google.android.material.button.MaterialButton;
+import com.google.android.material.chip.ChipGroup;
+import com.runningstats.app.MainActivity;
+import com.runningstats.app.R;
+import com.runningstats.app.data.PrefsManager;
+import com.runningstats.app.data.StatsCalculator;
+import com.runningstats.app.model.RunActivity;
+import com.runningstats.app.util.FormatUtils;
+
+import java.util.List;
+import java.util.Locale;
+
+public class DashboardFragment extends Fragment implements RefreshableFragment {
+
+    private SwipeRefreshLayout swipeRefresh;
+    private TextView tvSyncStatus;
+    private TextView tvSyncSubtitle;
+    private MaterialButton btnSyncNow;
+    private MaterialButton btnLoadDemo;
+    private ChipGroup chipGroupPeriod;
+
+    private TextView tvStatDistance;
+    private TextView tvStatRuns;
+    private TextView tvStatPace;
+    private TextView tvStatHrElev;
+    private TextView tvLoadSummary;
+    private TextView tvHighlights;
+
+    private int selectedPeriod = 0; // 0 = This Year, 1 = Last 30 Days, 2 = All Time
+
+    @Nullable
+    @Override
+    public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
+        return inflater.inflate(R.layout.fragment_dashboard, container, false);
+    }
+
+    @Override
+    public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
+        super.onViewCreated(view, savedInstanceState);
+
+        swipeRefresh = view.findViewById(R.id.swipeRefresh);
+        tvSyncStatus = view.findViewById(R.id.tvSyncStatus);
+        tvSyncSubtitle = view.findViewById(R.id.tvSyncSubtitle);
+        btnSyncNow = view.findViewById(R.id.btnSyncNow);
+        btnLoadDemo = view.findViewById(R.id.btnLoadDemo);
+        chipGroupPeriod = view.findViewById(R.id.chipGroupPeriod);
+
+        tvStatDistance = view.findViewById(R.id.tvStatDistance);
+        tvStatRuns = view.findViewById(R.id.tvStatRuns);
+        tvStatPace = view.findViewById(R.id.tvStatPace);
+        tvStatHrElev = view.findViewById(R.id.tvStatHrElev);
+        tvLoadSummary = view.findViewById(R.id.tvLoadSummary);
+        tvHighlights = view.findViewById(R.id.tvHighlights);
+
+        swipeRefresh.setOnRefreshListener(this::triggerSync);
+
+        btnSyncNow.setOnClickListener(v -> {
+            MainActivity host = getHostActivity();
+            if (host == null) return;
+            if (!host.getPrefs().isStravaConnected()) {
+                host.navigateToTab(R.id.nav_settings);
+            } else {
+                triggerSync();
+            }
+        });
+
+        btnLoadDemo.setOnClickListener(v -> {
+            MainActivity host = getHostActivity();
+            if (host == null) return;
+            int count = host.getDb().seedSampleRuns();
+            Toast.makeText(requireContext(), "Loaded " + count + " sample runs across 3 years!", Toast.LENGTH_SHORT).show();
+            refreshData();
+        });
+
+        chipGroupPeriod.setOnCheckedStateChangeListener((group, checkedIds) -> {
+            if (checkedIds.isEmpty()) return;
+            int id = checkedIds.get(0);
+            if (id == R.id.chipThisYear) {
+                selectedPeriod = 0;
+            } else if (id == R.id.chip30Days) {
+                selectedPeriod = 1;
+            } else if (id == R.id.chipAllTime) {
+                selectedPeriod = 2;
+            }
+            refreshData();
+        });
+
+        refreshData();
+    }
+
+    private void triggerSync() {
+        MainActivity host = getHostActivity();
+        if (host == null) {
+            swipeRefresh.setRefreshing(false);
+            return;
+        }
+        if (!host.getPrefs().isStravaConnected()) {
+            swipeRefresh.setRefreshing(false);
+            Toast.makeText(requireContext(), "Connect your Strava account in Settings first.", Toast.LENGTH_SHORT).show();
+            host.navigateToTab(R.id.nav_settings);
+            return;
+        }
+        swipeRefresh.setRefreshing(true);
+        host.syncStrava(false, new MainActivity.SyncCallback() {
+            @Override
+            public void onProgress(String message) {
+                if (isAdded()) {
+                    tvSyncSubtitle.setText(message);
+                }
+            }
+
+            @Override
+            public void onComplete(boolean success, String message) {
+                if (!isAdded()) return;
+                swipeRefresh.setRefreshing(false);
+                Toast.makeText(requireContext(), message, Toast.LENGTH_SHORT).show();
+                refreshData();
+            }
+        });
+    }
+
+    @Override
+    public void refreshData() {
+        MainActivity host = getHostActivity();
+        if (host == null || !isAdded()) return;
+
+        PrefsManager prefs = host.getPrefs();
+        boolean useMiles = prefs.useMiles();
+        List<RunActivity> allRuns = host.getDb().getAllRuns();
+
+        // Sync status header
+        if (prefs.isStravaConnected()) {
+            String athlete = prefs.getAthleteName();
+            String label = athlete.isEmpty() ? "Strava Connected" : "Connected: " + athlete;
+            tvSyncStatus.setText(label);
+            tvSyncSubtitle.setText(String.format(
+                    Locale.US,
+                    "%d runs stored offline • Last sync: %s",
+                    allRuns.size(),
+                    FormatUtils.formatTimestamp(prefs.getLastSyncMs())
+            ));
+            btnSyncNow.setText("Sync Strava");
+        } else {
+            tvSyncStatus.setText(allRuns.isEmpty()
+                    ? "Connect Strava to Sync Your Runs"
+                    : "Preview Mode (" + allRuns.size() + " runs stored)");
+            tvSyncSubtitle.setText("Link your free Strava account in Settings or load sample data.");
+            btnSyncNow.setText("Connect Strava");
+        }
+
+        // Period summary
+        List<RunActivity> periodRuns = StatsCalculator.filterByPeriod(allRuns, selectedPeriod);
+        StatsCalculator.SummaryStats summary = StatsCalculator.computeSummary(periodRuns);
+
+        tvStatDistance.setText(FormatUtils.formatDistance(summary.totalDistanceMeters, useMiles));
+        tvStatRuns.setText(String.valueOf(summary.runCount));
+        tvStatPace.setText(FormatUtils.formatPace(summary.getAvgPaceSeconds(useMiles), useMiles));
+
+        String hrPart = summary.hrRunCount > 0 ? FormatUtils.formatHr(summary.avgHr) : "-- bpm";
+        String elevPart = "+" + FormatUtils.formatElevation(summary.totalElevationMeters, useMiles);
+        tvStatHrElev.setText(hrPart + "\n" + elevPart);
+
+        // Training Load & Insights (computed over full history)
+        if (allRuns.isEmpty()) {
+            tvLoadSummary.setText("Sync runs or tap Load Sample to see your volume ramp, streaks, and aerobic efficiency.");
+        } else {
+            StatsCalculator.TrainingInsights ins = StatsCalculator.computeInsights(allRuns);
+            String rampLabel;
+            if (ins.acwr <= 0.01) {
+                rampLabel = "Building baseline";
+            } else if (ins.acwr < 0.80) {
+                rampLabel = "Recovery / light week";
+            } else if (ins.acwr <= 1.30) {
+                rampLabel = "Optimal build zone";
+            } else if (ins.acwr <= 1.50) {
+                rampLabel = "High ramp — watch fatigue";
+            } else {
+                rampLabel = "Very sharp spike — consider extra rest";
+            }
+
+            StringBuilder loadSb = new StringBuilder();
+            loadSb.append(String.format(Locale.US, "• Last 7 days: %s (28d weekly avg: %s)\n",
+                    FormatUtils.formatDistance(ins.last7DaysMeters, useMiles),
+                    FormatUtils.formatDistance(ins.weeklyAvg28DaysMeters, useMiles)));
+            loadSb.append(String.format(Locale.US, "• Load ratio (ACWR): %.2f — %s\n", ins.acwr, rampLabel));
+            loadSb.append(String.format(Locale.US, "• Weekly streak: %d weeks current (%d longest)",
+                    ins.currentWeekStreak, ins.longestWeekStreak));
+            if (ins.recentEfficiency > 0.0) {
+                loadSb.append(String.format(Locale.US, "\n• Aerobic efficiency (90d): %.2f m/beat", ins.recentEfficiency));
+                if (ins.priorEfficiency > 0.0) {
+                    loadSb.append(String.format(Locale.US, " (%+.1f%% vs prior 90d)", ins.efficiencyChangePct));
+                }
+            }
+            tvLoadSummary.setText(loadSb.toString());
+        }
+
+        // Period Highlights
+        if (periodRuns.isEmpty()) {
+            tvHighlights.setText("No runs recorded in this period yet.");
+        } else {
+            StringBuilder hiSb = new StringBuilder();
+            hiSb.append("• Total moving time: ").append(FormatUtils.formatDuration(summary.totalMovingSeconds));
+            if (summary.longestRun != null) {
+                hiSb.append(String.format(Locale.US, "\n• Longest run: %s (%s)",
+                        FormatUtils.formatDistance(summary.longestRun.distanceMeters, useMiles),
+                        FormatUtils.formatDate(summary.longestRun.getLocalDate())));
+            }
+            if (summary.fastestRun != null) {
+                hiSb.append(String.format(Locale.US, "\n• Fastest 5K+ run: %s over %s (%s)",
+                        FormatUtils.formatPace(summary.fastestRun.getPaceSeconds(useMiles), useMiles),
+                        FormatUtils.formatDistance(summary.fastestRun.distanceMeters, useMiles),
+                        FormatUtils.formatDate(summary.fastestRun.getLocalDate())));
+            }
+            if (summary.biggestClimbRun != null && summary.biggestClimbRun.elevationGainMeters > 0) {
+                hiSb.append(String.format(Locale.US, "\n• Biggest climb: +%s (%s)",
+                        FormatUtils.formatElevation(summary.biggestClimbRun.elevationGainMeters, useMiles),
+                        summary.biggestClimbRun.name));
+            }
+            tvHighlights.setText(hiSb.toString());
+        }
+    }
+
+    private MainActivity getHostActivity() {
+        return (getActivity() instanceof MainActivity) ? (MainActivity) getActivity() : null;
+    }
+}

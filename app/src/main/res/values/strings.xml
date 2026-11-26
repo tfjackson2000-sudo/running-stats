@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">RunStats</string>
+    <string name="nav_dashboard">Dashboard</string>
+    <string name="nav_graphs">Graphs</string>
+    <string name="nav_runs">Runs</string>
+    <string name="nav_coach">AI Coach</string>
+    <string name="nav_settings">Settings</string>
+</resources>
