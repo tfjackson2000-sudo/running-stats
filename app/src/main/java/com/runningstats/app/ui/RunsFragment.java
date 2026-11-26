@@ -114,7 +114,9 @@ public class RunsFragment extends Fragment implements RefreshableFragment {
 
     private void applyFilters() {
         if (!(getActivity() instanceof MainActivity) || !isAdded()) return;
-        boolean useMiles = ((MainActivity) getActivity()).getPrefs().useMiles();
+        MainActivity host = (MainActivity) getActivity();
+        boolean useMiles = host.getPrefs().useMiles();
+        String athleteName = host.getPrefs().getAthleteName();
 
         List<RunActivity> filtered = new ArrayList<>();
         double totalMeters = 0.0;
@@ -132,10 +134,10 @@ public class RunsFragment extends Fragment implements RefreshableFragment {
             totalMeters += r.distanceMeters;
         }
 
-        adapter.setRuns(filtered, useMiles);
+        adapter.setRuns(filtered, useMiles, athleteName);
         tvRunsCount.setText(String.format(
                 Locale.US,
-                "%d runs • %s",
+                "%d activities • %s",
                 filtered.size(),
                 FormatUtils.formatDistance(totalMeters, useMiles)
         ));

@@ -54,13 +54,13 @@ public class GeminiClient {
 
         JSONObject generationConfig = new JSONObject();
         generationConfig.put("temperature", 0.5);
-        generationConfig.put("maxOutputTokens", 1024);
+        generationConfig.put("maxOutputTokens", 4096);
         payload.put("generationConfig", generationConfig);
 
         HttpURLConnection conn = (HttpURLConnection) new URL(endpoint).openConnection();
         conn.setRequestMethod("POST");
         conn.setConnectTimeout(15000);
-        conn.setReadTimeout(45000);
+        conn.setReadTimeout(90000);
         conn.setDoOutput(true);
         conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
         conn.setRequestProperty("x-goog-api-key", apiKey);

@@ -37,24 +37,24 @@ jobs:
         run: gradle assembleDebug --no-daemon --stacktrace
 
       - name: Prepare APK file
-        run: cp app/build/outputs/apk/debug/app-debug.apk RunStats.apk
+        run: cp app/build/outputs/apk/debug/app-debug.apk Stravo.apk
 
       - name: Publish APK to GitHub Releases
         if: github.event_name != 'pull_request'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          NOTES="Latest automatic build from commit ${GITHUB_SHA::7}."
+          NOTES="Latest Stravo automatic build from commit ${GITHUB_SHA::7}."
           if gh release view latest >/dev/null 2>&1; then
-            gh release upload latest RunStats.apk --clobber
-            gh release edit latest --title "RunStats (Latest Build)" --notes "$NOTES"
+            gh release upload latest Stravo.apk --clobber
+            gh release edit latest --title "Stravo (Latest Build)" --notes "$NOTES"
           else
-            gh release create latest RunStats.apk --title "RunStats (Latest Build)" --notes "$NOTES" --latest
+            gh release create latest Stravo.apk --title "Stravo (Latest Build)" --notes "$NOTES" --latest
           fi
 
       - name: Upload Debug APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: RunStats-debug-apk
-          path: RunStats.apk
+          name: Stravo-debug-apk
+          path: Stravo.apk
           retention-days: 30

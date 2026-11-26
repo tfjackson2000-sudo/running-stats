@@ -13,9 +13,9 @@ public class PrefsManager {
     private static final String KEY_ATHLETE_NAME = "athlete_name";
     private static final String KEY_LAST_SYNC_MS = "last_sync_ms";
     private static final String KEY_GEMINI_API_KEY = "gemini_api_key";
-    private static final String KEY_GEMINI_MODEL = "gemini_model";
+    private static final String KEY_GEMINI_MODEL = "gemini_model_v2";
 
-    public static final String DEFAULT_GEMINI_MODEL = "gemini-flash-latest";
+    public static final String DEFAULT_GEMINI_MODEL = "gemini-pro-latest";
 
     private final SharedPreferences prefs;
 

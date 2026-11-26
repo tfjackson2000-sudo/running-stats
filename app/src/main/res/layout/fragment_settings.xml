@@ -90,7 +90,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
                     android:text="Status: Not connected"
-                    android:textColor="@color/brand_orange"
+                    android:textColor="@color/brand_blue_primary"
                     android:textSize="13sp"
                     android:textStyle="bold" />
 

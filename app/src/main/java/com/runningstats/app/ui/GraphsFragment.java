@@ -104,15 +104,15 @@ public class GraphsFragment extends Fragment implements RefreshableFragment {
         tvGraphsEmpty.setVisibility(View.GONE);
 
         int textSecondary = ContextCompat.getColor(requireContext(), R.color.text_secondary);
-        int orange = ContextCompat.getColor(requireContext(), R.color.brand_orange);
-        int teal = ContextCompat.getColor(requireContext(), R.color.brand_teal);
-        int blue = ContextCompat.getColor(requireContext(), R.color.brand_blue);
-        int purple = ContextCompat.getColor(requireContext(), R.color.brand_purple);
+        int primaryBlue = ContextCompat.getColor(requireContext(), R.color.brand_blue_primary);
+        int cyan = ContextCompat.getColor(requireContext(), R.color.brand_cyan);
+        int indigo = ContextCompat.getColor(requireContext(), R.color.brand_indigo);
+        int slate = ContextCompat.getColor(requireContext(), R.color.brand_slate);
 
-        renderYearlyChart(allRuns, useMiles, unit, orange, textSecondary);
-        renderCumulativeChart(allRuns, useMiles, new int[]{purple, blue, teal, orange}, textSecondary);
-        renderMonthlyChart(allRuns, useMiles, teal, textSecondary);
-        renderPaceHrChart(allRuns, useMiles, orange, blue, textSecondary);
+        renderYearlyChart(allRuns, useMiles, unit, primaryBlue, textSecondary);
+        renderCumulativeChart(allRuns, useMiles, new int[]{slate, indigo, cyan, primaryBlue}, textSecondary);
+        renderMonthlyChart(allRuns, useMiles, cyan, textSecondary);
+        renderPaceHrChart(allRuns, useMiles, primaryBlue, indigo, textSecondary);
     }
 
     private void renderYearlyChart(List<RunActivity> runs, boolean useMiles, String unit, int barColor, int axisColor) {

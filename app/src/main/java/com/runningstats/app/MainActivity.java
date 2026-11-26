@@ -57,19 +57,19 @@ public class MainActivity extends AppCompatActivity {
         bottomNav.setOnItemSelectedListener(item -> {
             int id = item.getItemId();
             if (id == R.id.nav_dashboard) {
-                showFragment(new DashboardFragment(), "RunStats");
+                showFragment(new DashboardFragment(), "STRAVO");
                 return true;
             } else if (id == R.id.nav_graphs) {
-                showFragment(new GraphsFragment(), "Graphs & Trends");
+                showFragment(new GraphsFragment(), "Charts");
                 return true;
             } else if (id == R.id.nav_runs) {
-                showFragment(new RunsFragment(), "Run History");
+                showFragment(new RunsFragment(), "Feed");
                 return true;
             } else if (id == R.id.nav_coach) {
-                showFragment(new CoachFragment(), "AI Running Coach");
+                showFragment(new CoachFragment(), "AI Coach");
                 return true;
             } else if (id == R.id.nav_settings) {
-                showFragment(new SettingsFragment(), "Settings");
+                showFragment(new SettingsFragment(), "You & Settings");
                 return true;
             }
             return false;

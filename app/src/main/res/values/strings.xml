@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">RunStats</string>
-    <string name="nav_dashboard">Dashboard</string>
-    <string name="nav_graphs">Graphs</string>
-    <string name="nav_runs">Runs</string>
-    <string name="nav_coach">AI Coach</string>
-    <string name="nav_settings">Settings</string>
+    <string name="app_name">Stravo</string>
+    <string name="nav_dashboard">Progress</string>
+    <string name="nav_graphs">Charts</string>
+    <string name="nav_runs">Feed</string>
+    <string name="nav_coach">Coach</string>
+    <string name="nav_settings">You</string>
 </resources>

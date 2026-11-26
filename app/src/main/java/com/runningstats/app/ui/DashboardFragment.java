@@ -21,12 +21,16 @@ import com.runningstats.app.data.StatsCalculator;
 import com.runningstats.app.model.RunActivity;
 import com.runningstats.app.util.FormatUtils;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Locale;
 
 public class DashboardFragment extends Fragment implements RefreshableFragment {
 
     private SwipeRefreshLayout swipeRefresh;
+    private TextView tvWeekRuns;
+    private TextView tvWeekTime;
+    private TextView tvWeekDistance;
     private TextView tvSyncStatus;
     private TextView tvSyncSubtitle;
     private MaterialButton btnSyncNow;
@@ -53,6 +57,9 @@ public class DashboardFragment extends Fragment implements RefreshableFragment {
         super.onViewCreated(view, savedInstanceState);
 
         swipeRefresh = view.findViewById(R.id.swipeRefresh);
+        tvWeekRuns = view.findViewById(R.id.tvWeekRuns);
+        tvWeekTime = view.findViewById(R.id.tvWeekTime);
+        tvWeekDistance = view.findViewById(R.id.tvWeekDistance);
         tvSyncStatus = view.findViewById(R.id.tvSyncStatus);
         tvSyncSubtitle = view.findViewById(R.id.tvSyncSubtitle);
         btnSyncNow = view.findViewById(R.id.btnSyncNow);
@@ -110,7 +117,7 @@ public class DashboardFragment extends Fragment implements RefreshableFragment {
         }
         if (!host.getPrefs().isIntervalsConnected()) {
             swipeRefresh.setRefreshing(false);
-            Toast.makeText(requireContext(), "Add your free Intervals.icu key (or import a Garmin CSV) in Settings.", Toast.LENGTH_SHORT).show();
+            Toast.makeText(requireContext(), "Add your free Intervals.icu key (or import a Garmin CSV) in You → Settings.", Toast.LENGTH_SHORT).show();
             host.navigateToTab(R.id.nav_settings);
             return;
         }
@@ -142,23 +149,42 @@ public class DashboardFragment extends Fragment implements RefreshableFragment {
         boolean useMiles = prefs.useMiles();
         List<RunActivity> allRuns = host.getDb().getAllRuns();
 
+        // Weekly Snapshot (last 7 days)
+        LocalDate today = LocalDate.now();
+        LocalDate sevenDaysAgo = today.minusDays(6);
+        int wkRuns = 0;
+        long wkSeconds = 0L;
+        double wkMeters = 0.0;
+        for (RunActivity r : allRuns) {
+            LocalDate d = r.getLocalDate();
+            if (!d.isBefore(sevenDaysAgo) && !d.isAfter(today)) {
+                wkRuns++;
+                wkSeconds += r.movingTimeSeconds;
+                wkMeters += r.distanceMeters;
+            }
+        }
+        tvWeekRuns.setText(String.valueOf(wkRuns));
+        tvWeekTime.setText(FormatUtils.formatDuration(wkSeconds));
+        tvWeekDistance.setText(FormatUtils.formatDistance(wkMeters, useMiles));
+
         if (prefs.isIntervalsConnected()) {
             String athlete = prefs.getAthleteName();
-            String label = athlete.isEmpty() ? "Garmin Sync Ready (Intervals.icu)" : "Connected: " + athlete;
-            tvSyncStatus.setText(label);
-            tvSyncSubtitle.setText(String.format(
+            String label = athlete.isEmpty() ? "Garmin Sync Ready" : athlete;
+            tvSyncStatus.setText(String.format(
                     Locale.US,
-                    "%d runs stored offline • Last sync: %s",
+                    "%s • %d runs • Synced %s",
+                    label,
                     allRuns.size(),
                     FormatUtils.formatTimestamp(prefs.getLastSyncMs())
             ));
-            btnSyncNow.setText("Sync Runs");
+            tvSyncSubtitle.setText("Pull down anytime to fetch your newest Garmin runs.");
+            btnSyncNow.setText("Sync");
         } else {
             tvSyncStatus.setText(allRuns.isEmpty()
-                    ? "Connect Garmin (Free via Intervals.icu)"
+                    ? "Not connected yet"
                     : allRuns.size() + " runs stored locally");
-            tvSyncSubtitle.setText("Link free Intervals.icu auto-sync or import a Garmin CSV in Settings.");
-            btnSyncNow.setText("Set Up Sync");
+            tvSyncSubtitle.setText("Connect free Garmin sync via Intervals.icu in You → Settings.");
+            btnSyncNow.setText("Connect");
         }
 
         List<RunActivity> periodRuns = StatsCalculator.filterByPeriod(allRuns, selectedPeriod);
