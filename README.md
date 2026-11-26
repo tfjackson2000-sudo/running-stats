@@ -25,7 +25,7 @@ Syncs your Garmin runs via your **free Strava account** into an offline local SQ
    git remote add origin https://github.com/<YOUR_USERNAME>/<YOUR_REPO>.git
    git push -u origin main
    ```
-3. Open the **Actions** tab on GitHub → click the latest **Build Android APK** run → download **`RunStats-debug-apk`** at the bottom and install `app-debug.apk` on your Android phone.
+3. Open the **Releases** section on the right side of your GitHub repo page and tap **`RunStats.apk`** to download and install it directly on your Android phone (no unzipping needed).
 
 ---
 
