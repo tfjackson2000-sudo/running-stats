@@ -26,9 +26,53 @@ public class GeminiClient {
         if (apiKey.isEmpty()) {
             throw new IllegalStateException("Add your Gemini API key in Settings to use the AI Running Coach.");
         }
-        String model = prefs.getGeminiModel();
-        String endpoint = "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent";
+        String primaryModel = prefs.getGeminiModel();
+        String payloadJson = buildPayload(systemContext, conversationHistory);
 
+        try {
+            return callModelWithRetry(apiKey, primaryModel, payloadJson);
+        } catch (RetryableApiException e) {
+            // If flagship Pro is temporarily overloaded (503) or rate-limited (429),
+            // automatically fall back to gemini-flash-latest so the coach still answers.
+            if (!"gemini-flash-latest".equalsIgnoreCase(primaryModel)) {
+                try {
+                    String fallbackReply = callModelWithRetry(apiKey, "gemini-flash-latest", payloadJson);
+                    return fallbackReply + "\n\n(Note: " + primaryModel + " was busy, so answered using gemini-flash-latest.)";
+                } catch (Exception ignored) {
+                    // Fall through and throw the original error
+                }
+            }
+            throw e;
+        }
+    }
+
+    private static class RetryableApiException extends IOException {
+        RetryableApiException(String message) {
+            super(message);
+        }
+    }
+
+    private static String callModelWithRetry(String apiKey, String model, String payloadJson) throws Exception {
+        int maxAttempts = 2;
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                return callModelOnce(apiKey, model, payloadJson);
+            } catch (RetryableApiException e) {
+                if (attempt == maxAttempts) {
+                    throw e;
+                }
+                try {
+                    Thread.sleep(1500L);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw e;
+                }
+            }
+        }
+        throw new IOException("Gemini request failed.");
+    }
+
+    private static String buildPayload(String systemContext, List<ChatMessage> conversationHistory) throws Exception {
         JSONObject payload = new JSONObject();
 
         // System instruction carrying the athlete's real running metrics
@@ -56,6 +100,11 @@ public class GeminiClient {
         generationConfig.put("temperature", 0.5);
         generationConfig.put("maxOutputTokens", 4096);
         payload.put("generationConfig", generationConfig);
+        return payload.toString();
+    }
+
+    private static String callModelOnce(String apiKey, String model, String payloadJson) throws Exception {
+        String endpoint = "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent";
 
         HttpURLConnection conn = (HttpURLConnection) new URL(endpoint).openConnection();
         conn.setRequestMethod("POST");
@@ -66,7 +115,7 @@ public class GeminiClient {
         conn.setRequestProperty("x-goog-api-key", apiKey);
 
         try {
-            byte[] bodyBytes = payload.toString().getBytes(StandardCharsets.UTF_8);
+            byte[] bodyBytes = payloadJson.getBytes(StandardCharsets.UTF_8);
             try (OutputStream os = conn.getOutputStream()) {
                 os.write(bodyBytes);
             }
@@ -85,7 +134,11 @@ public class GeminiClient {
 
             if (code < 200 || code >= 300) {
                 String errMsg = extractErrorMessage(sb.toString());
-                throw new IOException("Gemini API error (" + code + "): " + errMsg);
+                String fullErr = "Gemini API error (" + code + "): " + errMsg;
+                if (code == 429 || code == 503 || code == 500) {
+                    throw new RetryableApiException(fullErr);
+                }
+                throw new IOException(fullErr);
             }
 
             JSONObject resp = new JSONObject(sb.toString());
