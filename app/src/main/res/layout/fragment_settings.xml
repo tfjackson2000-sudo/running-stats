@@ -59,7 +59,7 @@
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
-        <!-- Strava Connection Card -->
+        <!-- Free Garmin Auto-Sync via Intervals.icu Card -->
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -79,13 +79,13 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Strava Account (Free API)"
+                    android:text="Garmin Auto-Sync (Free via Intervals.icu)"
                     android:textColor="@color/text_primary"
                     android:textSize="16sp"
                     android:textStyle="bold" />
 
                 <TextView
-                    android:id="@+id/tvStravaConnectionStatus"
+                    android:id="@+id/tvConnectionStatus"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
@@ -98,7 +98,8 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="6dp"
-                    android:text="Create a free API app at strava.com/settings/api with Authorization Callback Domain set to: localhost"
+                    android:lineSpacingExtra="2dp"
+                    android:text="100% free — no paid subscription needed:\n1. Sign up free at intervals.icu\n2. Link Garmin Connect (Settings → Connections → Garmin Connect)\n3. Scroll to Developer Settings → copy your API Key below"
                     android:textColor="@color/text_secondary"
                     android:textSize="12sp" />
 
@@ -107,44 +108,22 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
-                    android:hint="Strava Client ID">
-
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/etStravaClientId"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:inputType="number" />
-                </com.google.android.material.textfield.TextInputLayout>
-
-                <com.google.android.material.textfield.TextInputLayout
-                    style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
-                    android:hint="Strava Client Secret"
+                    android:hint="Intervals.icu API Key"
                     app:endIconMode="password_toggle">
 
                     <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/etStravaClientSecret"
+                        android:id="@+id/etIntervalsKey"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:inputType="textPassword" />
                 </com.google.android.material.textfield.TextInputLayout>
 
                 <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnConnectStrava"
+                    android:id="@+id/btnSaveAndSync"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
-                    android:text="Save &amp; Connect with Strava"
-                    android:textAllCaps="false" />
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnPasteCode"
-                    style="@style/Widget.Material3.Button.TextButton"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Paste callback URL / code manually"
+                    android:text="Save Key &amp; Sync Full History"
                     android:textAllCaps="false" />
 
                 <LinearLayout
@@ -160,17 +139,17 @@
                         android:layout_height="wrap_content"
                         android:layout_marginEnd="6dp"
                         android:layout_weight="1"
-                        android:text="Sync New"
+                        android:text="Sync New Runs"
                         android:textAllCaps="false" />
 
                     <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btnSyncFull"
-                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:id="@+id/btnOpenIntervals"
+                        style="@style/Widget.Material3.Button.TextButton"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_marginStart="6dp"
                         android:layout_weight="1"
-                        android:text="Full History"
+                        android:text="Open Intervals.icu"
                         android:textAllCaps="false" />
                 </LinearLayout>
 
@@ -179,6 +158,60 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
+                    android:text=""
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp"
+                    android:visibility="gone" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Direct Garmin CSV Import Card -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="14dp"
+            app:cardBackgroundColor="@color/bg_card"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="0dp"
+            app:strokeColor="@color/stroke_subtle"
+            app:strokeWidth="1dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Direct Garmin CSV Import (Offline)"
+                    android:textColor="@color/text_primary"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="No third-party account needed: export Activities.csv from connect.garmin.com → Activities → All Activities → Export CSV."
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnImportCsv"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:text="Import Garmin Activities.csv"
+                    android:textAllCaps="false" />
+
+                <TextView
+                    android:id="@+id/tvCsvStatus"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
                     android:text=""
                     android:textColor="@color/text_secondary"
                     android:textSize="12sp"
@@ -215,7 +248,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
-                    android:text="Get a personal Gemini API key at aistudio.google.com. Stored only on your phone."
+                    android:text="Get a free personal Gemini API key at aistudio.google.com. Stored only on your phone."
                     android:textColor="@color/text_secondary"
                     android:textSize="12sp" />
 
@@ -311,12 +344,12 @@
                 </LinearLayout>
 
                 <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnDisconnectStrava"
+                    android:id="@+id/btnDisconnect"
                     style="@style/Widget.Material3.Button.TextButton"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
-                    android:text="Disconnect Strava Account"
+                    android:text="Remove Intervals.icu API Key"
                     android:textAllCaps="false" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>

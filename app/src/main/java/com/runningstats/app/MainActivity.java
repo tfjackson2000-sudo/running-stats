@@ -1,21 +1,20 @@
 package com.runningstats.app;
 
-import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.widget.Toast;
 
-import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.fragment.app.Fragment;
 
 import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
+import com.runningstats.app.data.GarminCsvImporter;
+import com.runningstats.app.data.IntervalsClient;
 import com.runningstats.app.data.PrefsManager;
 import com.runningstats.app.data.RunDatabaseHelper;
-import com.runningstats.app.data.StravaClient;
 import com.runningstats.app.ui.CoachFragment;
 import com.runningstats.app.ui.DashboardFragment;
 import com.runningstats.app.ui.GraphsFragment;
@@ -79,15 +78,6 @@ public class MainActivity extends AppCompatActivity {
         if (savedInstanceState == null) {
             bottomNav.setSelectedItemId(R.id.nav_dashboard);
         }
-
-        handleOAuthIntent(getIntent());
-    }
-
-    @Override
-    protected void onNewIntent(@NonNull Intent intent) {
-        super.onNewIntent(intent);
-        setIntent(intent);
-        handleOAuthIntent(intent);
     }
 
     @Override
@@ -129,66 +119,18 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private void handleOAuthIntent(Intent intent) {
-        if (intent == null) {
-            return;
-        }
-        Uri data = intent.getData();
-        if (data == null) {
-            return;
-        }
-        if ("runningstats".equalsIgnoreCase(data.getScheme())) {
-            String error = data.getQueryParameter("error");
-            if (error != null && !error.isEmpty()) {
-                Toast.makeText(this, "Strava authorization canceled: " + error, Toast.LENGTH_LONG).show();
-                return;
-            }
-            String code = data.getQueryParameter("code");
-            if (code != null && !code.isEmpty()) {
-                // Clear intent data so rotation won't replay the one-time OAuth code
-                intent.setData(null);
-                exchangeStravaCode(code);
-            }
-        }
-    }
-
-    public void exchangeStravaCode(String rawInput) {
-        String code = StravaClient.extractCodeFromInput(rawInput);
-        if (code.isEmpty()) {
-            Toast.makeText(this, "No authorization code found.", Toast.LENGTH_SHORT).show();
-            return;
-        }
-        Toast.makeText(this, "Connecting to Strava...", Toast.LENGTH_SHORT).show();
-        executor.execute(() -> {
-            try {
-                String athleteName = StravaClient.exchangeCodeForTokens(prefs, code);
-                mainHandler.post(() -> {
-                    Toast.makeText(MainActivity.this, "Connected as " + athleteName + "! Starting sync...", Toast.LENGTH_LONG).show();
-                    notifyDataChanged();
-                    syncStrava(true, null);
-                });
-            } catch (Exception e) {
-                mainHandler.post(() -> Toast.makeText(
-                        MainActivity.this,
-                        "Strava connect failed: " + e.getMessage(),
-                        Toast.LENGTH_LONG
-                ).show());
-            }
-        });
-    }
-
-    public void syncStrava(boolean fullHistory, SyncCallback callback) {
+    public void syncIntervals(boolean fullHistory, SyncCallback callback) {
         if (isSyncing) {
             if (callback != null) {
                 callback.onComplete(false, "Sync already in progress...");
             }
             return;
         }
-        if (!prefs.isStravaConnected()) {
+        if (!prefs.isIntervalsConnected()) {
             if (callback != null) {
-                callback.onComplete(false, "Connect Strava in Settings first.");
+                callback.onComplete(false, "Add your free Intervals.icu API key in Settings first.");
             } else {
-                Toast.makeText(this, "Connect Strava in Settings first.", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "Add your free Intervals.icu API key in Settings first.", Toast.LENGTH_SHORT).show();
             }
             return;
         }
@@ -196,14 +138,18 @@ public class MainActivity extends AppCompatActivity {
         isSyncing = true;
         executor.execute(() -> {
             try {
-                int synced = StravaClient.syncRuns(prefs, db, fullHistory, msg ->
+                if (callback != null) {
+                    mainHandler.post(() -> callback.onProgress("Connecting to Intervals.icu..."));
+                }
+                IntervalsClient.verifyAndFetchAthleteName(prefs);
+                int synced = IntervalsClient.syncRuns(prefs, db, fullHistory, msg ->
                         mainHandler.post(() -> {
                             if (callback != null) {
                                 callback.onProgress(msg);
                             }
                         })
                 );
-                String doneMsg = "Synced " + synced + " run" + (synced == 1 ? "" : "s") + " from Strava.";
+                String doneMsg = "Synced " + synced + " run" + (synced == 1 ? "" : "s") + " from Intervals.icu.";
                 mainHandler.post(() -> {
                     isSyncing = false;
                     notifyDataChanged();
@@ -215,6 +161,47 @@ public class MainActivity extends AppCompatActivity {
                 });
             } catch (Exception e) {
                 String err = "Sync failed: " + e.getMessage();
+                mainHandler.post(() -> {
+                    isSyncing = false;
+                    if (callback != null) {
+                        callback.onComplete(false, err);
+                    } else {
+                        Toast.makeText(MainActivity.this, err, Toast.LENGTH_LONG).show();
+                    }
+                });
+            }
+        });
+    }
+
+    public void importGarminCsv(Uri csvUri, boolean csvInMiles, SyncCallback callback) {
+        if (isSyncing) {
+            if (callback != null) {
+                callback.onComplete(false, "Another sync/import is already running...");
+            }
+            return;
+        }
+        isSyncing = true;
+        executor.execute(() -> {
+            try {
+                if (callback != null) {
+                    mainHandler.post(() -> callback.onProgress("Reading Garmin CSV..."));
+                }
+                int imported = GarminCsvImporter.importFromUri(MainActivity.this, csvUri, db, csvInMiles);
+                prefs.setLastSyncMs(System.currentTimeMillis());
+                String doneMsg = imported > 0
+                        ? "Imported " + imported + " runs from Garmin CSV!"
+                        : "No running activities found in that CSV file.";
+                mainHandler.post(() -> {
+                    isSyncing = false;
+                    notifyDataChanged();
+                    if (callback != null) {
+                        callback.onComplete(imported > 0, doneMsg);
+                    } else {
+                        Toast.makeText(MainActivity.this, doneMsg, Toast.LENGTH_LONG).show();
+                    }
+                });
+            } catch (Exception e) {
+                String err = "CSV import failed: " + e.getMessage();
                 mainHandler.post(() -> {
                     isSyncing = false;
                     if (callback != null) {

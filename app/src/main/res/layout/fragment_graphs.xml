@@ -19,7 +19,7 @@
             android:layout_marginBottom="12dp"
             android:gravity="center"
             android:padding="20dp"
-            android:text="No runs yet. Connect Strava or load sample runs on the Dashboard to see graphs."
+            android:text="No runs yet. Connect free Garmin sync in Settings or load sample runs on the Dashboard to see graphs."
             android:textColor="@color/text_secondary"
             android:textSize="14sp"
             android:visibility="gone" />

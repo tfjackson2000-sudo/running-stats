@@ -38,7 +38,7 @@
                         android:id="@+id/tvSyncStatus"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="Not connected to Strava"
+                        android:text="Connect Garmin Sync"
                         android:textColor="@color/text_primary"
                         android:textSize="14sp"
                         android:textStyle="bold" />
@@ -64,7 +64,7 @@
                             android:layout_height="wrap_content"
                             android:layout_marginEnd="8dp"
                             android:layout_weight="1"
-                            android:text="Sync Strava"
+                            android:text="Sync Runs"
                             android:textAllCaps="false" />
 
                         <com.google.android.material.button.MaterialButton

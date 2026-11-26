@@ -9,12 +9,8 @@ public class PrefsManager {
     private static final String PREFS_NAME = "runstats_prefs";
 
     private static final String KEY_USE_MILES = "use_miles";
-    private static final String KEY_STRAVA_CLIENT_ID = "strava_client_id";
-    private static final String KEY_STRAVA_CLIENT_SECRET = "strava_client_secret";
-    private static final String KEY_STRAVA_ACCESS_TOKEN = "strava_access_token";
-    private static final String KEY_STRAVA_REFRESH_TOKEN = "strava_refresh_token";
-    private static final String KEY_STRAVA_EXPIRES_AT = "strava_expires_at";
-    private static final String KEY_STRAVA_ATHLETE_NAME = "strava_athlete_name";
+    private static final String KEY_INTERVALS_API_KEY = "intervals_api_key";
+    private static final String KEY_ATHLETE_NAME = "athlete_name";
     private static final String KEY_LAST_SYNC_MS = "last_sync_ms";
     private static final String KEY_GEMINI_API_KEY = "gemini_api_key";
     private static final String KEY_GEMINI_MODEL = "gemini_model";
@@ -35,73 +31,35 @@ public class PrefsManager {
         prefs.edit().putBoolean(KEY_USE_MILES, useMiles).apply();
     }
 
-    public String getStravaClientId() {
-        String saved = prefs.getString(KEY_STRAVA_CLIENT_ID, "");
+    public String getIntervalsApiKey() {
+        String saved = prefs.getString(KEY_INTERVALS_API_KEY, "");
         if (saved != null && !saved.trim().isEmpty()) {
             return saved.trim();
         }
-        return BuildConfig.DEFAULT_STRAVA_CLIENT_ID != null ? BuildConfig.DEFAULT_STRAVA_CLIENT_ID.trim() : "";
+        return BuildConfig.DEFAULT_INTERVALS_API_KEY != null ? BuildConfig.DEFAULT_INTERVALS_API_KEY.trim() : "";
     }
 
-    public void setStravaClientId(String clientId) {
-        prefs.edit().putString(KEY_STRAVA_CLIENT_ID, clientId != null ? clientId.trim() : "").apply();
+    public void setIntervalsApiKey(String apiKey) {
+        prefs.edit().putString(KEY_INTERVALS_API_KEY, apiKey != null ? apiKey.trim() : "").apply();
     }
 
-    public String getStravaClientSecret() {
-        String saved = prefs.getString(KEY_STRAVA_CLIENT_SECRET, "");
-        if (saved != null && !saved.trim().isEmpty()) {
-            return saved.trim();
-        }
-        return BuildConfig.DEFAULT_STRAVA_CLIENT_SECRET != null ? BuildConfig.DEFAULT_STRAVA_CLIENT_SECRET.trim() : "";
+    public boolean isIntervalsConnected() {
+        return !getIntervalsApiKey().isEmpty();
     }
 
-    public void setStravaClientSecret(String clientSecret) {
-        prefs.edit().putString(KEY_STRAVA_CLIENT_SECRET, clientSecret != null ? clientSecret.trim() : "").apply();
-    }
-
-    public boolean hasStravaCredentials() {
-        return !getStravaClientId().isEmpty() && !getStravaClientSecret().isEmpty();
-    }
-
-    public String getStravaAccessToken() {
-        return prefs.getString(KEY_STRAVA_ACCESS_TOKEN, "");
-    }
-
-    public String getStravaRefreshToken() {
-        return prefs.getString(KEY_STRAVA_REFRESH_TOKEN, "");
-    }
-
-    public long getStravaExpiresAt() {
-        return prefs.getLong(KEY_STRAVA_EXPIRES_AT, 0L);
+    public void clearIntervalsConnection() {
+        prefs.edit()
+                .remove(KEY_INTERVALS_API_KEY)
+                .remove(KEY_ATHLETE_NAME)
+                .apply();
     }
 
     public String getAthleteName() {
-        return prefs.getString(KEY_STRAVA_ATHLETE_NAME, "");
+        return prefs.getString(KEY_ATHLETE_NAME, "");
     }
 
-    public boolean isStravaConnected() {
-        String refresh = getStravaRefreshToken();
-        return refresh != null && !refresh.isEmpty();
-    }
-
-    public void saveStravaTokens(String accessToken, String refreshToken, long expiresAt, String athleteName) {
-        SharedPreferences.Editor editor = prefs.edit()
-                .putString(KEY_STRAVA_ACCESS_TOKEN, accessToken != null ? accessToken : "")
-                .putString(KEY_STRAVA_REFRESH_TOKEN, refreshToken != null ? refreshToken : "")
-                .putLong(KEY_STRAVA_EXPIRES_AT, expiresAt);
-        if (athleteName != null && !athleteName.trim().isEmpty()) {
-            editor.putString(KEY_STRAVA_ATHLETE_NAME, athleteName.trim());
-        }
-        editor.apply();
-    }
-
-    public void clearStravaTokens() {
-        prefs.edit()
-                .remove(KEY_STRAVA_ACCESS_TOKEN)
-                .remove(KEY_STRAVA_REFRESH_TOKEN)
-                .remove(KEY_STRAVA_EXPIRES_AT)
-                .remove(KEY_STRAVA_ATHLETE_NAME)
-                .apply();
+    public void setAthleteName(String athleteName) {
+        prefs.edit().putString(KEY_ATHLETE_NAME, athleteName != null ? athleteName.trim() : "").apply();
     }
 
     public long getLastSyncMs() {

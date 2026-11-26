@@ -71,7 +71,7 @@ public class DashboardFragment extends Fragment implements RefreshableFragment {
         btnSyncNow.setOnClickListener(v -> {
             MainActivity host = getHostActivity();
             if (host == null) return;
-            if (!host.getPrefs().isStravaConnected()) {
+            if (!host.getPrefs().isIntervalsConnected()) {
                 host.navigateToTab(R.id.nav_settings);
             } else {
                 triggerSync();
@@ -108,14 +108,14 @@ public class DashboardFragment extends Fragment implements RefreshableFragment {
             swipeRefresh.setRefreshing(false);
             return;
         }
-        if (!host.getPrefs().isStravaConnected()) {
+        if (!host.getPrefs().isIntervalsConnected()) {
             swipeRefresh.setRefreshing(false);
-            Toast.makeText(requireContext(), "Connect your Strava account in Settings first.", Toast.LENGTH_SHORT).show();
+            Toast.makeText(requireContext(), "Add your free Intervals.icu key (or import a Garmin CSV) in Settings.", Toast.LENGTH_SHORT).show();
             host.navigateToTab(R.id.nav_settings);
             return;
         }
         swipeRefresh.setRefreshing(true);
-        host.syncStrava(false, new MainActivity.SyncCallback() {
+        host.syncIntervals(false, new MainActivity.SyncCallback() {
             @Override
             public void onProgress(String message) {
                 if (isAdded()) {
@@ -142,10 +142,9 @@ public class DashboardFragment extends Fragment implements RefreshableFragment {
         boolean useMiles = prefs.useMiles();
         List<RunActivity> allRuns = host.getDb().getAllRuns();
 
-        // Sync status header
-        if (prefs.isStravaConnected()) {
+        if (prefs.isIntervalsConnected()) {
             String athlete = prefs.getAthleteName();
-            String label = athlete.isEmpty() ? "Strava Connected" : "Connected: " + athlete;
+            String label = athlete.isEmpty() ? "Garmin Sync Ready (Intervals.icu)" : "Connected: " + athlete;
             tvSyncStatus.setText(label);
             tvSyncSubtitle.setText(String.format(
                     Locale.US,
@@ -153,16 +152,15 @@ public class DashboardFragment extends Fragment implements RefreshableFragment {
                     allRuns.size(),
                     FormatUtils.formatTimestamp(prefs.getLastSyncMs())
             ));
-            btnSyncNow.setText("Sync Strava");
+            btnSyncNow.setText("Sync Runs");
         } else {
             tvSyncStatus.setText(allRuns.isEmpty()
-                    ? "Connect Strava to Sync Your Runs"
-                    : "Preview Mode (" + allRuns.size() + " runs stored)");
-            tvSyncSubtitle.setText("Link your free Strava account in Settings or load sample data.");
-            btnSyncNow.setText("Connect Strava");
+                    ? "Connect Garmin (Free via Intervals.icu)"
+                    : allRuns.size() + " runs stored locally");
+            tvSyncSubtitle.setText("Link free Intervals.icu auto-sync or import a Garmin CSV in Settings.");
+            btnSyncNow.setText("Set Up Sync");
         }
 
-        // Period summary
         List<RunActivity> periodRuns = StatsCalculator.filterByPeriod(allRuns, selectedPeriod);
         StatsCalculator.SummaryStats summary = StatsCalculator.computeSummary(periodRuns);
 
@@ -174,7 +172,6 @@ public class DashboardFragment extends Fragment implements RefreshableFragment {
         String elevPart = "+" + FormatUtils.formatElevation(summary.totalElevationMeters, useMiles);
         tvStatHrElev.setText(hrPart + "\n" + elevPart);
 
-        // Training Load & Insights (computed over full history)
         if (allRuns.isEmpty()) {
             tvLoadSummary.setText("Sync runs or tap Load Sample to see your volume ramp, streaks, and aerobic efficiency.");
         } else {
@@ -208,7 +205,6 @@ public class DashboardFragment extends Fragment implements RefreshableFragment {
             tvLoadSummary.setText(loadSb.toString());
         }
 
-        // Period Highlights
         if (periodRuns.isEmpty()) {
             tvHighlights.setText("No runs recorded in this period yet.");
         } else {

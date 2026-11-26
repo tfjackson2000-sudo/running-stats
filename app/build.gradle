@@ -34,8 +34,7 @@ android {
         versionCode 1
         versionName "1.0.0"
 
-        buildConfigField "String", "DEFAULT_STRAVA_CLIENT_ID", "\"${escapeBuildConfig(getConfigValue('STRAVA_CLIENT_ID'))}\""
-        buildConfigField "String", "DEFAULT_STRAVA_CLIENT_SECRET", "\"${escapeBuildConfig(getConfigValue('STRAVA_CLIENT_SECRET'))}\""
+        buildConfigField "String", "DEFAULT_INTERVALS_API_KEY", "\"${escapeBuildConfig(getConfigValue('INTERVALS_API_KEY'))}\""
         buildConfigField "String", "DEFAULT_GEMINI_API_KEY", "\"${escapeBuildConfig(getConfigValue('GEMINI_API_KEY'))}\""
     }
 

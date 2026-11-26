@@ -2,7 +2,7 @@
 
 A personal native Android running stats, multi-year graphs, and optional AI running coach app built in **Java** (`MainActivity.java`) and compiled automatically via **GitHub Actions**.
 
-Syncs your Garmin runs via your **free Strava account** into an offline local SQLite database on your phone—no backend server required and no API keys committed to GitHub.
+Syncs your **Garmin Connect** runs **100% free** via **Intervals.icu** (no Strava subscription required) OR imports Garmin Connect `Activities.csv` files directly offline.
 
 ## Features
 - **Dashboard:** Yearly, 30-day, and all-time totals (distance, run count, avg pace, avg HR, elevation), weekly streaks, Acute:Chronic Workload Ratio (ACWR), aerobic efficiency trends, and period highlights.
@@ -14,38 +14,29 @@ Syncs your Garmin runs via your **free Strava account** into an offline local SQ
 - **Run History:** Searchable & year-filterable list of every synced run with full run details on tap.
 - **Optional AI Running Coach:** Chat with Gemini grounded directly in your real multi-year & recent running metrics.
 - **Units Toggle:** Switch cleanly between **Kilometers (`km` / `m`)** and **Miles (`mi` / `ft`)** in Settings.
-- **Sample Data Mode:** Load 3 years of realistic sample runs in one tap to explore every graph before linking Strava.
 
 ---
 
-## 1. Build the APK with GitHub Actions
-1. Create a new repository on GitHub (private or public).
-2. Push this project to `main`:
-   ```bash
-   git remote add origin https://github.com/<YOUR_USERNAME>/<YOUR_REPO>.git
-   git push -u origin main
-   ```
-3. Open the **Releases** section on the right side of your GitHub repo page and tap **`RunStats.apk`** to download and install it directly on your Android phone (no unzipping needed).
+## 1. Download the APK directly from GitHub
+Open the **Releases** section on the right side of this GitHub repository and tap **`RunStats.apk`** to download and install it directly on your Android phone (no unzipping needed).
 
 ---
 
-## 2. Connect Your Free Strava Account (2 minutes)
-1. Make sure your Garmin Connect account auto-syncs to Strava (Garmin Connect app → Settings → Connected Apps → Strava).
-2. Go to [strava.com/settings/api](https://www.strava.com/settings/api) and create a personal API application:
-   - **Application Name:** `RunStats` (or anything you like)
-   - **Category:** `Data Importer` or `Training`
-   - **Website:** `http://localhost`
-   - **Authorization Callback Domain:** `localhost` *(no `http://`, just `localhost`)*
-3. Copy your **Client ID** and **Client Secret**.
-4. Open **RunStats** on your phone → **Settings** → paste your Client ID & Client Secret → tap **Save & Connect with Strava** → authorize!
-   - *Tip:* If your mobile browser shows a page instead of auto-returning to the app, copy the URL from the browser's address bar and tap **Paste callback URL / code manually** in Settings.
-5. After connecting, the app automatically syncs your full running history into local storage. Future syncs only fetch new runs!
+## 2. Connect Your Garmin Runs (100% Free — Two Options)
+
+### Option A: Automatic Garmin Sync via Intervals.icu (Recommended — Free)
+1. Create a free account at [intervals.icu](https://intervals.icu/).
+2. In Intervals.icu go to **Settings → Connections → Garmin Connect** and authorize your Garmin account (you can also click **Import All Data** in Intervals.icu to backfill past years from Garmin).
+3. Scroll to **Developer Settings** at the bottom of **Settings** on Intervals.icu and generate/copy your **API Key**.
+4. Open **RunStats** → **Settings** → paste your **Intervals.icu API Key** → tap **Save Key & Sync Full History**.
+
+### Option B: Direct Offline Garmin Connect CSV Import
+1. Go to [connect.garmin.com](https://connect.garmin.com/) → **Activities → All Activities** → scroll down as far as you want → click **Export CSV**.
+2. Open **RunStats** → **Settings** → tap **Import Garmin Activities.csv** and pick the file.
 
 ---
 
 ## 3. Optional: Enable AI Running Coach
-1. Get a personal Gemini API key at [aistudio.google.com](https://aistudio.google.com/).
+1. Get a free personal Gemini API key at [aistudio.google.com](https://aistudio.google.com/).
 2. Open **Settings** in RunStats → paste your **Gemini API Key** → tap **Save AI Settings**.
 3. Open the **AI Coach** tab and tap a quick prompt or ask your own question!
-
-*(Optional: If you use a private repo and want your keys pre-filled in builds, you can also add `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`, and `GEMINI_API_KEY` as GitHub Repository Secrets — they will never be committed to Git.)*

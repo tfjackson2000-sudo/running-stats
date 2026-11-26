@@ -323,7 +323,7 @@ public class StatsCalculator {
     public static String buildAiCoachContext(List<RunActivity> allRuns, boolean useMiles) {
         String unit = useMiles ? "mi" : "km";
         StringBuilder sb = new StringBuilder();
-        sb.append("You are an experienced, supportive, evidence-based running coach analyzing the user's real running history synced from Strava/Garmin.\n");
+        sb.append("You are an experienced, supportive, evidence-based running coach analyzing the user's real running history synced from Garmin.\n");
         sb.append("Give concise, practical, personalized advice grounded directly in their numbers below. Use ").append(unit).append(" and min/").append(unit).append(" for all distances and paces.\n");
         sb.append("Do not diagnose medical conditions; suggest seeing a professional if they mention sharp or persistent pain.\n\n");
 
