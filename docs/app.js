@@ -1634,4 +1634,12 @@
   loadState();
   initEvents();
   renderAll();
+
+  // Auto-sync silently on open if connected and last sync was over 30 minutes ago
+  if (state.prefs.intervalsKey && Date.now() - (state.prefs.lastSyncMs || 0) >= 30 * 60 * 1000) {
+    syncIntervals(false, (msg) => {
+      const sub = $("syncSubtitle");
+      if (sub) sub.textContent = msg;
+    });
+  }
 })();

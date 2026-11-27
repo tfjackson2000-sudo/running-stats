@@ -37,6 +37,8 @@ public class MainActivity extends AppCompatActivity {
     private ExecutorService executor;
     private Handler mainHandler;
 
+    private static final long AUTO_SYNC_INTERVAL_MS = 30L * 60L * 1000L; // 30 minutes
+
     private MaterialToolbar toolbar;
     private BottomNavigationView bottomNav;
     private boolean isSyncing = false;
@@ -77,6 +79,35 @@ public class MainActivity extends AppCompatActivity {
 
         if (savedInstanceState == null) {
             bottomNav.setSelectedItemId(R.id.nav_dashboard);
+        }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        maybeAutoSync();
+    }
+
+    private void maybeAutoSync() {
+        if (isSyncing || !prefs.isIntervalsConnected()) {
+            return;
+        }
+        long elapsed = System.currentTimeMillis() - prefs.getLastSyncMs();
+        if (elapsed >= AUTO_SYNC_INTERVAL_MS) {
+            // Silently sync latest runs & Garmin wellness when opening the app
+            syncIntervals(false, new SyncCallback() {
+                @Override
+                public void onProgress(String message) {
+                    // Quiet background sync
+                }
+
+                @Override
+                public void onComplete(boolean success, String message) {
+                    if (success) {
+                        notifyDataChanged();
+                    }
+                }
+            });
         }
     }
 
