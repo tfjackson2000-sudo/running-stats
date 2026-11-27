@@ -934,19 +934,39 @@
   // ---------- Rendering ----------
   function renderProgress() {
     const today = todayYmd();
-    const d7 = daysAgoYmd(6);
-    let wkRuns = 0, wkSec = 0, wkMeters = 0;
-    for (const r of state.runs) {
-      if (r.date >= d7 && r.date <= today) { wkRuns++; wkSec += r.movingTime; wkMeters += r.distance; }
-    }
-    $("wkRuns").textContent = wkRuns;
-    $("wkTime").textContent = fmtDuration(wkSec);
-    $("wkDistance").textContent = fmtDistance(wkMeters);
+    const weekStart = mondayOf(today);
+    const thisMonth = today.slice(0, 7);
+    const thisYear = today.slice(0, 4);
+
+    const wkRunsList = state.runs.filter((r) => r.date >= weekStart && r.date <= today);
+    const moRunsList = state.runs.filter((r) => r.date.startsWith(thisMonth));
+    const yrRunsList = state.runs.filter((r) => r.date.startsWith(thisYear));
+
+    const wkSum = computeSummary(wkRunsList);
+    const moSum = computeSummary(moRunsList);
+    const yrSum = computeSummary(yrRunsList);
+    const allSum = computeSummary(state.runs);
+
+    $("wkRuns").textContent = wkSum.count;
+    $("wkTime").textContent = fmtDuration(wkSum.moving);
+    $("wkDistance").textContent = fmtDistance(wkSum.dist);
+
+    $("moRuns").textContent = moSum.count;
+    $("moTime").textContent = fmtDuration(moSum.moving);
+    $("moDistance").textContent = fmtDistance(moSum.dist);
+
+    $("yrRuns").textContent = yrSum.count;
+    $("yrTime").textContent = fmtDuration(yrSum.moving);
+    $("yrDistance").textContent = fmtDistance(yrSum.dist);
+
+    $("allRuns").textContent = allSum.count;
+    $("allTime").textContent = fmtDuration(allSum.moving);
+    $("allDistance").textContent = fmtDistance(allSum.dist);
 
     if (state.prefs.intervalsKey) {
       const who = state.prefs.athleteName || "Garmin Sync Ready";
       $("syncStatusLine").textContent = `${who} • ${state.runs.length} runs • Synced ${fmtTimestamp(state.prefs.lastSyncMs)}`;
-      $("syncSubtitle").textContent = "Click Sync anytime to fetch your newest Garmin runs & wellness.";
+      $("syncSubtitle").textContent = "Auto-syncs on open, or click Sync anytime.";
       $("btnDashSync").textContent = "Sync";
     } else {
       $("syncStatusLine").textContent = state.runs.length ? `${state.runs.length} runs stored locally` : "Not connected yet";
@@ -954,11 +974,10 @@
       $("btnDashSync").textContent = "Connect";
     }
 
-    const thisYear = String(new Date().getFullYear());
-    const d30 = daysAgoYmd(30);
-    const filtered = state.period === "all"
-      ? state.runs
-      : state.runs.filter((r) => (state.period === "year" ? r.date.startsWith(thisYear) : r.date >= d30));
+    const filtered = state.period === "week" ? wkRunsList
+      : state.period === "month" ? moRunsList
+      : state.period === "year" ? yrRunsList
+      : state.runs;
 
     const sum = computeSummary(filtered);
     $("statDistance").textContent = fmtDistance(sum.dist);

@@ -32,6 +32,15 @@ public class DashboardFragment extends Fragment implements RefreshableFragment {
     private TextView tvWeekRuns;
     private TextView tvWeekTime;
     private TextView tvWeekDistance;
+    private TextView tvMonthRuns;
+    private TextView tvMonthTime;
+    private TextView tvMonthDistance;
+    private TextView tvYearRuns;
+    private TextView tvYearTime;
+    private TextView tvYearDistance;
+    private TextView tvAllRuns;
+    private TextView tvAllTime;
+    private TextView tvAllDistance;
     private TextView tvSyncStatus;
     private TextView tvSyncSubtitle;
     private MaterialButton btnSyncNow;
@@ -50,7 +59,7 @@ public class DashboardFragment extends Fragment implements RefreshableFragment {
     private TextView tvLoadSummary;
     private TextView tvHighlights;
 
-    private int selectedPeriod = 0; // 0 = This Year, 1 = Last 30 Days, 2 = All Time
+    private int selectedPeriod = 2; // 0 = Week, 1 = Month, 2 = Year, 3 = All Time
 
     @Nullable
     @Override
@@ -66,6 +75,15 @@ public class DashboardFragment extends Fragment implements RefreshableFragment {
         tvWeekRuns = view.findViewById(R.id.tvWeekRuns);
         tvWeekTime = view.findViewById(R.id.tvWeekTime);
         tvWeekDistance = view.findViewById(R.id.tvWeekDistance);
+        tvMonthRuns = view.findViewById(R.id.tvMonthRuns);
+        tvMonthTime = view.findViewById(R.id.tvMonthTime);
+        tvMonthDistance = view.findViewById(R.id.tvMonthDistance);
+        tvYearRuns = view.findViewById(R.id.tvYearRuns);
+        tvYearTime = view.findViewById(R.id.tvYearTime);
+        tvYearDistance = view.findViewById(R.id.tvYearDistance);
+        tvAllRuns = view.findViewById(R.id.tvAllRuns);
+        tvAllTime = view.findViewById(R.id.tvAllTime);
+        tvAllDistance = view.findViewById(R.id.tvAllDistance);
         tvSyncStatus = view.findViewById(R.id.tvSyncStatus);
         tvSyncSubtitle = view.findViewById(R.id.tvSyncSubtitle);
         btnSyncNow = view.findViewById(R.id.btnSyncNow);
@@ -107,12 +125,14 @@ public class DashboardFragment extends Fragment implements RefreshableFragment {
         chipGroupPeriod.setOnCheckedStateChangeListener((group, checkedIds) -> {
             if (checkedIds.isEmpty()) return;
             int id = checkedIds.get(0);
-            if (id == R.id.chipThisYear) {
+            if (id == R.id.chipThisWeek) {
                 selectedPeriod = 0;
-            } else if (id == R.id.chip30Days) {
+            } else if (id == R.id.chipThisMonth) {
                 selectedPeriod = 1;
-            } else if (id == R.id.chipAllTime) {
+            } else if (id == R.id.chipThisYear) {
                 selectedPeriod = 2;
+            } else if (id == R.id.chipAllTime) {
+                selectedPeriod = 3;
             }
             refreshData();
         });
@@ -161,23 +181,27 @@ public class DashboardFragment extends Fragment implements RefreshableFragment {
         List<RunActivity> allRuns = host.getDb().getAllRuns();
         List<WellnessEntry> allWellness = host.getDb().getAllWellness();
 
-        // Weekly Snapshot (last 7 days)
-        LocalDate today = LocalDate.now();
-        LocalDate sevenDaysAgo = today.minusDays(6);
-        int wkRuns = 0;
-        long wkSeconds = 0L;
-        double wkMeters = 0.0;
-        for (RunActivity r : allRuns) {
-            LocalDate d = r.getLocalDate();
-            if (!d.isBefore(sevenDaysAgo) && !d.isAfter(today)) {
-                wkRuns++;
-                wkSeconds += r.movingTimeSeconds;
-                wkMeters += r.distanceMeters;
-            }
-        }
-        tvWeekRuns.setText(String.valueOf(wkRuns));
-        tvWeekTime.setText(FormatUtils.formatDuration(wkSeconds));
-        tvWeekDistance.setText(FormatUtils.formatDistance(wkMeters, useMiles));
+        // Multi-Period Snapshots (This Week / This Month / This Year / All Time)
+        StatsCalculator.SummaryStats wkSum = StatsCalculator.computeSummary(StatsCalculator.filterByPeriod(allRuns, 0));
+        StatsCalculator.SummaryStats moSum = StatsCalculator.computeSummary(StatsCalculator.filterByPeriod(allRuns, 1));
+        StatsCalculator.SummaryStats yrSum = StatsCalculator.computeSummary(StatsCalculator.filterByPeriod(allRuns, 2));
+        StatsCalculator.SummaryStats allSum = StatsCalculator.computeSummary(allRuns);
+
+        tvWeekRuns.setText(String.valueOf(wkSum.runCount));
+        tvWeekTime.setText(FormatUtils.formatDuration(wkSum.totalMovingSeconds));
+        tvWeekDistance.setText(FormatUtils.formatDistance(wkSum.totalDistanceMeters, useMiles));
+
+        tvMonthRuns.setText(String.valueOf(moSum.runCount));
+        tvMonthTime.setText(FormatUtils.formatDuration(moSum.totalMovingSeconds));
+        tvMonthDistance.setText(FormatUtils.formatDistance(moSum.totalDistanceMeters, useMiles));
+
+        tvYearRuns.setText(String.valueOf(yrSum.runCount));
+        tvYearTime.setText(FormatUtils.formatDuration(yrSum.totalMovingSeconds));
+        tvYearDistance.setText(FormatUtils.formatDistance(yrSum.totalDistanceMeters, useMiles));
+
+        tvAllRuns.setText(String.valueOf(allSum.runCount));
+        tvAllTime.setText(FormatUtils.formatDuration(allSum.totalMovingSeconds));
+        tvAllDistance.setText(FormatUtils.formatDistance(allSum.totalDistanceMeters, useMiles));
 
         if (prefs.isIntervalsConnected()) {
             String athlete = prefs.getAthleteName();

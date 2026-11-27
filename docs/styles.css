@@ -218,34 +218,47 @@ a:hover {
   color: var(--text-secondary);
 }
 
-.snapshot-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  margin-top: 16px;
-  padding-top: 14px;
+.snapshots-table {
+  margin-top: 14px;
   border-top: 1px solid var(--divider);
 }
 
-.stat-col {
-  display: flex;
-  flex-direction: column;
-  padding-right: 12px;
+.snap-row {
+  display: grid;
+  grid-template-columns: 1.2fr 0.7fr 1.1fr 1.2fr;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--divider);
+  font-size: 15px;
 }
 
-.divider-left {
-  border-left: 1px solid var(--divider);
-  padding-left: 14px;
+.snap-row:last-child {
+  border-bottom: none;
+  padding-bottom: 2px;
 }
 
-.stat-label {
-  font-size: 12px;
+.snap-head {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
   color: var(--text-secondary);
+  padding: 8px 0;
 }
 
-.stat-value {
-  font-size: 26px;
+.snap-period {
+  font-weight: 700;
+}
+
+.num {
+  text-align: right;
+}
+
+.bold {
   font-weight: 800;
-  margin-top: 2px;
+}
+
+.muted-val {
+  color: var(--text-secondary);
 }
 
 .totals-grid {

@@ -345,16 +345,20 @@ public class StatsCalculator {
     }
 
     public static List<RunActivity> filterByPeriod(List<RunActivity> allRuns, int periodIndex) {
-        if (allRuns == null || allRuns.isEmpty() || periodIndex == 2) {
+        // 0 = This Week (Mon-Sun), 1 = This Month, 2 = This Year, 3 = All Time
+        if (allRuns == null || allRuns.isEmpty() || periodIndex == 3) {
             return allRuns != null ? allRuns : Collections.emptyList();
         }
         LocalDate today = LocalDate.now();
+        LocalDate weekStart = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
         List<RunActivity> filtered = new ArrayList<>();
         for (RunActivity r : allRuns) {
             LocalDate d = r.getLocalDate();
-            if (periodIndex == 0 && d.getYear() == today.getYear()) {
+            if (periodIndex == 0 && !d.isBefore(weekStart) && !d.isAfter(today)) {
                 filtered.add(r);
-            } else if (periodIndex == 1 && !d.isBefore(today.minusDays(30))) {
+            } else if (periodIndex == 1 && d.getYear() == today.getYear() && d.getMonthValue() == today.getMonthValue()) {
+                filtered.add(r);
+            } else if (periodIndex == 2 && d.getYear() == today.getYear()) {
                 filtered.add(r);
             }
         }

@@ -35,26 +35,44 @@
       <div class="card">
         <div class="card-header-row">
           <div>
-            <h2>Your Weekly Snapshot</h2>
-            <p id="syncSubtitle" class="muted">Connect free Garmin sync via Intervals.icu in You → Settings.</p>
+            <h2>Your Running Snapshots</h2>
+            <p id="syncSubtitle" class="muted">Auto-syncs on open or click Sync anytime.</p>
           </div>
           <div class="btn-row">
             <button id="btnDashSync" class="btn btn-primary">Connect</button>
             <button id="btnDashSample" class="btn btn-ghost">Load Sample</button>
           </div>
         </div>
-        <div class="snapshot-grid">
-          <div class="stat-col">
-            <span class="stat-label">Runs (7d)</span>
-            <span id="wkRuns" class="stat-value">0</span>
+        <div class="snapshots-table">
+          <div class="snap-row snap-head">
+            <span>PERIOD</span>
+            <span class="num">RUNS</span>
+            <span class="num">TIME</span>
+            <span class="num">DISTANCE</span>
           </div>
-          <div class="stat-col divider-left">
-            <span class="stat-label">Time (7d)</span>
-            <span id="wkTime" class="stat-value">0m</span>
+          <div class="snap-row">
+            <span class="snap-period">This Week</span>
+            <span id="wkRuns" class="num bold">0</span>
+            <span id="wkTime" class="num muted-val">0m</span>
+            <span id="wkDistance" class="num bold accent">0.0 km</span>
           </div>
-          <div class="stat-col divider-left">
-            <span class="stat-label">Distance (7d)</span>
-            <span id="wkDistance" class="stat-value accent">0.0 km</span>
+          <div class="snap-row">
+            <span class="snap-period">This Month</span>
+            <span id="moRuns" class="num bold">0</span>
+            <span id="moTime" class="num muted-val">0m</span>
+            <span id="moDistance" class="num bold accent">0.0 km</span>
+          </div>
+          <div class="snap-row">
+            <span class="snap-period">This Year</span>
+            <span id="yrRuns" class="num bold">0</span>
+            <span id="yrTime" class="num muted-val">0m</span>
+            <span id="yrDistance" class="num bold accent">0.0 km</span>
+          </div>
+          <div class="snap-row">
+            <span class="snap-period">All Time</span>
+            <span id="allRuns" class="num bold">0</span>
+            <span id="allTime" class="num muted-val">0m</span>
+            <span id="allDistance" class="num bold accent">0.0 km</span>
           </div>
         </div>
         <div id="syncStatusLine" class="status-meta">Not connected yet</div>
@@ -62,10 +80,11 @@
 
       <div class="card">
         <div class="card-header-row">
-          <h2>Running Totals</h2>
+          <h2>Detailed Breakdown</h2>
           <div class="chip-group" id="periodChips">
+            <button class="chip" data-period="week">This Week</button>
+            <button class="chip" data-period="month">This Month</button>
             <button class="chip active" data-period="year">This Year</button>
-            <button class="chip" data-period="30d">Last 30 Days</button>
             <button class="chip" data-period="all">All Time</button>
           </div>
         </div>
