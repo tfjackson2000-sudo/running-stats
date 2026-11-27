@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Stravo — Running Stats, HR vs Pace &amp; AI Coach</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="stylesheet" href="styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <img src="favicon.svg" alt="Stravo" class="brand-icon" />
+        <span class="brand-name">STRAVO</span>
+      </div>
+      <nav class="desktop-nav" aria-label="Primary navigation">
+        <button class="nav-btn active" data-tab="progress">Progress</button>
+        <button class="nav-btn" data-tab="charts">Charts</button>
+        <button class="nav-btn" data-tab="feed">Feed</button>
+        <button class="nav-btn" data-tab="coach">AI Coach</button>
+        <button class="nav-btn" data-tab="settings">You</button>
+      </nav>
+      <div class="topbar-actions">
+        <button id="btnThemeToggle" class="icon-btn" title="Toggle Dark / Light Mode" aria-label="Toggle Theme">◐</button>
+        <button id="btnTopSync" class="btn btn-primary btn-sm">Sync</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- TAB 1: PROGRESS -->
+    <section id="tab-progress" class="tab-panel active">
+      <div class="card">
+        <div class="card-header-row">
+          <div>
+            <h2>Your Weekly Snapshot</h2>
+            <p id="syncSubtitle" class="muted">Connect free Garmin sync via Intervals.icu in You → Settings.</p>
+          </div>
+          <div class="btn-row">
+            <button id="btnDashSync" class="btn btn-primary">Connect</button>
+            <button id="btnDashSample" class="btn btn-ghost">Load Sample</button>
+          </div>
+        </div>
+        <div class="snapshot-grid">
+          <div class="stat-col">
+            <span class="stat-label">Runs (7d)</span>
+            <span id="wkRuns" class="stat-value">0</span>
+          </div>
+          <div class="stat-col divider-left">
+            <span class="stat-label">Time (7d)</span>
+            <span id="wkTime" class="stat-value">0m</span>
+          </div>
+          <div class="stat-col divider-left">
+            <span class="stat-label">Distance (7d)</span>
+            <span id="wkDistance" class="stat-value accent">0.0 km</span>
+          </div>
+        </div>
+        <div id="syncStatusLine" class="status-meta">Not connected yet</div>
+      </div>
+
+      <div class="card">
+        <div class="card-header-row">
+          <h2>Running Totals</h2>
+          <div class="chip-group" id="periodChips">
+            <button class="chip active" data-period="year">This Year</button>
+            <button class="chip" data-period="30d">Last 30 Days</button>
+            <button class="chip" data-period="all">All Time</button>
+          </div>
+        </div>
+        <div class="totals-grid">
+          <div class="total-cell">
+            <span class="micro-label">DISTANCE</span>
+            <span id="statDistance" class="big-value accent">0.0 km</span>
+          </div>
+          <div class="total-cell">
+            <span class="micro-label">ACTIVITIES</span>
+            <span id="statRuns" class="big-value">0</span>
+          </div>
+          <div class="total-cell">
+            <span class="micro-label">AVG PACE</span>
+            <span id="statPace" class="big-value cyan">--:--</span>
+          </div>
+          <div class="total-cell">
+            <span class="micro-label">AVG HR / ELEV GAIN</span>
+            <span id="statHrElev" class="med-value">--</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="two-col-desktop">
+        <div class="card">
+          <h2>Garmin Health &amp; Readiness</h2>
+          <div class="totals-grid compact">
+            <div class="total-cell">
+              <span class="micro-label">VO2 MAX</span>
+              <span id="healthVo2" class="big-value accent">--</span>
+            </div>
+            <div class="total-cell">
+              <span class="micro-label">RESTING HR</span>
+              <span id="healthRhr" class="med-value">--</span>
+            </div>
+            <div class="total-cell">
+              <span class="micro-label">HRV (rMSSD)</span>
+              <span id="healthHrv" class="med-value cyan">--</span>
+            </div>
+            <div class="total-cell">
+              <span class="micro-label">SLEEP (30D AVG)</span>
+              <span id="healthSleep" class="med-value">--</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Personal Bests (All-Time)</h2>
+          <div id="prList" class="info-list muted">Sync runs of 5K or longer to see your estimated Personal Bests.</div>
+        </div>
+      </div>
+
+      <div class="two-col-desktop">
+        <div class="card">
+          <h2>Fitness &amp; Relative Load</h2>
+          <div id="loadSummary" class="info-list muted">Sync runs or click Load Sample to see volume ramp, streaks, and aerobic efficiency.</div>
+        </div>
+        <div class="card">
+          <h2>Best Efforts &amp; Highlights</h2>
+          <div id="periodHighlights" class="info-list muted">No runs recorded in this period yet.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 2: CHARTS -->
+    <section id="tab-charts" class="tab-panel">
+      <div class="card compact-card">
+        <div class="card-header-row">
+          <h2>Performance &amp; Fitness Charts</h2>
+          <div class="chip-group" id="chartRangeChips">
+            <button class="chip active" data-months="12">12 Months</button>
+            <button class="chip" data-months="24">2 Years</button>
+            <button class="chip" data-months="0">All Years</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="chartsEmpty" class="card empty-banner hidden">
+        No runs yet. Connect free Garmin sync in <strong>You → Settings</strong> or click <strong>Load Sample</strong> on Progress.
+      </div>
+
+      <div class="card">
+        <h2 id="titlePaceHr">Heart Rate vs. Pace Over Time</h2>
+        <p class="muted">Blue = Avg Pace (higher is faster) &bull; Indigo = Avg HR bpm (lower is easier)</p>
+        <div class="chart-box tall"><canvas id="chartPaceHr"></canvas></div>
+      </div>
+
+      <div class="two-col-desktop">
+        <div class="card">
+          <h2>Aerobic Efficiency (Meters / Heartbeat)</h2>
+          <p id="efficiencySummary" class="accent-note">Upward trend = running faster for the same heart rate.</p>
+          <div class="chart-box"><canvas id="chartEfficiency"></canvas></div>
+        </div>
+
+        <div class="card">
+          <h2>Pace by Heart Rate Zone (Last 90d vs Prior)</h2>
+          <p class="muted">Direct pace comparison at the same heart rate effort level.</p>
+          <div id="hrZoneTable" class="zone-table"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Garmin VO2 Max &amp; Resting HR</h2>
+        <p id="wellnessChartNote" class="muted">Blue = VO2 Max (left) &bull; Cyan = Resting HR bpm (right)</p>
+        <div class="chart-box"><canvas id="chartWellness"></canvas></div>
+      </div>
+
+      <div class="two-col-desktop">
+        <div class="card">
+          <h2 id="titleYearly">Yearly Distance</h2>
+          <div class="chart-box"><canvas id="chartYearly"></canvas></div>
+        </div>
+        <div class="card">
+          <h2 id="titleCumulative">Cumulative Year Comparison</h2>
+          <div class="chart-box"><canvas id="chartCumulative"></canvas></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2 id="titleMonthly">Monthly Distance</h2>
+        <div class="chart-box"><canvas id="chartMonthly"></canvas></div>
+      </div>
+    </section>
+
+    <!-- TAB 3: FEED -->
+    <section id="tab-feed" class="tab-panel">
+      <div class="card compact-card">
+        <input type="search" id="feedSearch" class="input" placeholder="Search activities by name, date, or type..." />
+        <div id="feedYearChips" class="chip-group scroll-x"></div>
+        <div id="feedCount" class="status-meta">0 activities</div>
+      </div>
+      <div id="feedList" class="feed-list"></div>
+    </section>
+
+    <!-- TAB 4: AI COACH -->
+    <section id="tab-coach" class="tab-panel">
+      <div class="card coach-shell">
+        <div class="chip-group scroll-x coach-prompts">
+          <button class="chip prompt-chip" data-prompt="Analyze my heart rate compared to pace over time, my aerobic efficiency, and my Garmin VO2 Max / resting HR / HRV. Am I getting aerobically fitter?">HR vs Pace fitness</button>
+          <button class="chip prompt-chip" data-prompt="Review my running over the last 4 weeks. What looks strong and what should I adjust?">Review last 4 weeks</button>
+          <button class="chip prompt-chip" data-prompt="How has my running volume, pace, and aerobic efficiency trended across the years?">Multi-year trend</button>
+          <button class="chip prompt-chip" data-prompt="Look at my recent weekly mileage ramp and ACWR. Am I increasing volume safely?">Mileage ramp check</button>
+          <button class="chip prompt-chip" data-prompt="Based on my recent runs, suggest a balanced 4-run schedule for next week.">Plan next week</button>
+        </div>
+
+        <div id="chatMessages" class="chat-messages"></div>
+
+        <div id="coachStatus" class="coach-status hidden"></div>
+
+        <form id="coachForm" class="coach-input-row">
+          <input type="text" id="coachInput" class="input" placeholder="Ask your AI running coach..." autocomplete="off" />
+          <button type="submit" id="btnCoachSend" class="btn btn-primary">Ask</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- TAB 5: SETTINGS (YOU) -->
+    <section id="tab-settings" class="tab-panel">
+      <div class="two-col-desktop">
+        <div class="card">
+          <h2>Display &amp; Preferences</h2>
+          <div class="setting-row">
+            <div>
+              <strong>Use Miles (mi / ft)</strong>
+              <p class="muted">Turn off for Kilometers (km / m)</p>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="toggleMiles" />
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="setting-row">
+            <div>
+              <strong>Dark Mode</strong>
+              <p class="muted">Electric Blue dark theme</p>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="toggleDark" />
+              <span class="slider"></span>
+            </label>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Garmin Auto-Sync (Free via Intervals.icu)</h2>
+          <p id="settingsConnStatus" class="accent-note">Status: Not connected</p>
+          <p class="muted small">
+            100% free — stored only in your browser:<br />
+            1. Sign up free at <a href="https://intervals.icu" target="_blank" rel="noopener">intervals.icu</a><br />
+            2. Link Garmin Connect (Settings → Connections → Garmin Connect)<br />
+            3. Scroll to Developer Settings → copy your API Key below
+          </p>
+          <label class="field-label" for="inputIntervalsKey">Intervals.icu API Key</label>
+          <input type="password" id="inputIntervalsKey" class="input" placeholder="Paste your Intervals.icu API key" />
+          <div class="btn-row wrap">
+            <button id="btnSaveFullSync" class="btn btn-primary">Save Key &amp; Sync Full History</button>
+            <button id="btnSyncNew" class="btn btn-outline">Sync New Runs</button>
+          </div>
+          <p id="settingsSyncProgress" class="muted small hidden"></p>
+        </div>
+      </div>
+
+      <div class="two-col-desktop">
+        <div class="card">
+          <h2>AI Running Coach (Gemini API)</h2>
+          <p class="muted small">
+            Get a personal key at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>.
+            Keys never leave your browser except when calling Gemini directly.
+          </p>
+          <label class="field-label" for="inputGeminiKey">Gemini API Key</label>
+          <input type="password" id="inputGeminiKey" class="input" placeholder="Paste your Gemini API key" />
+          <label class="field-label" for="inputGeminiModel">Gemini Model ID</label>
+          <input type="text" id="inputGeminiModel" class="input" value="gemini-pro-latest" />
+          <div class="btn-row">
+            <button id="btnSaveAi" class="btn btn-primary">Save AI Settings</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Direct Garmin CSV &amp; Local Data</h2>
+          <p class="muted small">
+            Prefer offline import? Upload <code>Activities.csv</code> exported from Garmin Connect, or load 3 years of sample data to explore.
+          </p>
+          <div class="btn-row wrap">
+            <label class="btn btn-outline file-btn">
+              Import Garmin CSV (km)
+              <input type="file" id="csvFileKm" accept=".csv,text/csv" hidden />
+            </label>
+            <label class="btn btn-outline file-btn">
+              Import Garmin CSV (mi)
+              <input type="file" id="csvFileMi" accept=".csv,text/csv" hidden />
+            </label>
+          </div>
+          <p id="csvStatus" class="muted small hidden"></p>
+          <hr class="sep" />
+          <div class="btn-row wrap">
+            <button id="btnSettingsSample" class="btn btn-outline">Load Sample Data</button>
+            <button id="btnClearRuns" class="btn btn-outline danger">Clear Local Runs</button>
+            <button id="btnRemoveKey" class="btn btn-ghost">Remove Intervals Key</button>
+          </div>
+          <p class="muted small" style="margin-top: 12px;">
+            Android APK available on <a href="https://github.com/tfjackson2000-sudo/running-stats/releases/latest" target="_blank" rel="noopener">GitHub Releases</a>.
+          </p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Mobile Bottom Navigation -->
+  <nav class="mobile-nav" aria-label="Mobile navigation">
+    <button class="mnav-btn active" data-tab="progress">Progress</button>
+    <button class="mnav-btn" data-tab="charts">Charts</button>
+    <button class="mnav-btn" data-tab="feed">Feed</button>
+    <button class="mnav-btn" data-tab="coach">Coach</button>
+    <button class="mnav-btn" data-tab="settings">You</button>
+  </nav>
+
+  <!-- Run Detail Modal -->
+  <div id="runModal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-backdrop"></div>
+    <div class="modal-card">
+      <div class="card-header-row">
+        <h2 id="modalTitle">Run Details</h2>
+        <button id="btnCloseModal" class="icon-btn" aria-label="Close">&times;</button>
+      </div>
+      <div id="modalBody" class="modal-body"></div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

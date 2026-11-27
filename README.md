@@ -13,7 +13,16 @@ Syncs your **Garmin Connect** runs **100% free** via **Intervals.icu** (no Strav
 
 ---
 
-## 1. Download `Stravo.apk` directly from GitHub
+## 1. Use Stravo on the Web (GitHub Pages) OR Android
+
+### Web App (Desktop, iPhone & Android browser)
+1. In your GitHub repo, open **Settings → Pages**.
+2. Under **Build and deployment → Source**, pick **Deploy from a branch**.
+3. Set **Branch** to **`main`** and **Folder** to **`/docs`**, then click **Save**.
+4. After ~1 minute, open your live Stravo website at:
+   `https://<YOUR_USERNAME>.github.io/<YOUR_REPO>/` *(all keys & synced runs stay 100% private inside your own browser's local storage)*.
+
+### Android App (`Stravo.apk`)
 Open the **Releases** section on the right side of this GitHub repository and tap **`Stravo.apk`** to install it directly on any Android phone.
 
 ---
