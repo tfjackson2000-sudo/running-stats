@@ -82,13 +82,16 @@ public class StatsCalculator {
 
     public static class WellnessSummary {
         public double latestVo2max;
+        public double avgVo2max;
+        public boolean vo2IsEstimated;
         public String latestVo2Date = "";
         public double latestRestingHr;
-        public double avg30dRestingHr;
+        public double avgRestingHr;
         public double latestHrv;
-        public double avg30dHrv;
+        public double avgHrv;
         public double latestSleepScore;
-        public double avg30dSleepHours;
+        public double avgSleepScore;
+        public double avgSleepHours;
         public double latestWeight;
         public int entryCount;
     }
@@ -290,58 +293,187 @@ public class StatsCalculator {
         return result;
     }
 
-    public static WellnessSummary computeWellnessSummary(List<WellnessEntry> entries) {
-        WellnessSummary s = new WellnessSummary();
-        if (entries == null || entries.isEmpty()) return s;
+    public static List<RunActivity> filterByPreviousPeriod(List<RunActivity> allRuns, int periodIndex) {
+        // 0 = Last Week (prev Mon-Sun), 1 = Last Month, 2 = Last Year
+        if (allRuns == null || allRuns.isEmpty() || periodIndex < 0 || periodIndex > 2) {
+            return Collections.emptyList();
+        }
+        LocalDate today = LocalDate.now();
+        LocalDate thisWeekStart = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+        LocalDate prevWeekStart = thisWeekStart.minusWeeks(1);
+        LocalDate prevWeekEnd = thisWeekStart.minusDays(1);
+        YearMonth prevMonth = YearMonth.now().minusMonths(1);
+        int prevYear = today.getYear() - 1;
 
-        LocalDate cutoff30 = LocalDate.now().minusDays(30);
+        List<RunActivity> filtered = new ArrayList<>();
+        for (RunActivity r : allRuns) {
+            LocalDate d = r.getLocalDate();
+            if (periodIndex == 0 && !d.isBefore(prevWeekStart) && !d.isAfter(prevWeekEnd)) {
+                filtered.add(r);
+            } else if (periodIndex == 1 && YearMonth.from(d).equals(prevMonth)) {
+                filtered.add(r);
+            } else if (periodIndex == 2 && d.getYear() == prevYear) {
+                filtered.add(r);
+            }
+        }
+        return filtered;
+    }
+
+    public static List<WellnessEntry> filterWellnessByPeriod(List<WellnessEntry> allWellness, int periodIndex) {
+        // 0 = This Week, 1 = This Month, 2 = This Year, 3 = All Time
+        if (allWellness == null || allWellness.isEmpty() || periodIndex == 3) {
+            return allWellness != null ? allWellness : Collections.emptyList();
+        }
+        LocalDate today = LocalDate.now();
+        LocalDate weekStart = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+        List<WellnessEntry> filtered = new ArrayList<>();
+        for (WellnessEntry w : allWellness) {
+            LocalDate d = w.getLocalDate();
+            if (periodIndex == 0 && !d.isBefore(weekStart) && !d.isAfter(today)) {
+                filtered.add(w);
+            } else if (periodIndex == 1 && d.getYear() == today.getYear() && d.getMonthValue() == today.getMonthValue()) {
+                filtered.add(w);
+            } else if (periodIndex == 2 && d.getYear() == today.getYear()) {
+                filtered.add(w);
+            }
+        }
+        return filtered;
+    }
+
+    public static double estimateRunVo2Max(RunActivity r, double restingHr, double maxHr) {
+        if (r == null || r.averageHeartrate < 95.0 || r.movingTimeSeconds < 720 || r.distanceMeters < 1500.0) {
+            return 0.0;
+        }
+        double rhr = (restingHr >= 35.0 && restingHr <= 85.0) ? restingHr : 55.0;
+        double mhr = (maxHr >= 155.0 && maxHr <= 215.0) ? maxHr : 188.0;
+        if (mhr <= rhr + 40.0) return 0.0;
+
+        double vMetersPerMin = r.distanceMeters / (r.movingTimeSeconds / 60.0);
+        if (vMetersPerMin < 90.0 || vMetersPerMin > 420.0) return 0.0;
+
+        // ACSM / Jack Daniels running oxygen cost formula
+        double vo2AtSpeed = -4.60 + (0.182258 * vMetersPerMin) + (0.000104 * vMetersPerMin * vMetersPerMin);
+        double pctHrr = (r.averageHeartrate - rhr) / (mhr - rhr);
+        if (pctHrr < 0.40 || pctHrr > 1.02) return 0.0;
+        double clampedPct = Math.max(0.45, Math.min(0.98, pctHrr));
+        double est = vo2AtSpeed / clampedPct;
+        return (est >= 25.0 && est <= 82.0) ? est : 0.0;
+    }
+
+    private static double inferBaselineRestingHr(List<WellnessEntry> allWellness) {
+        if (allWellness == null) return 55.0;
+        double sum = 0.0;
+        int n = 0;
+        for (WellnessEntry w : allWellness) {
+            if (w.restingHr >= 35.0 && w.restingHr <= 85.0) {
+                sum += w.restingHr;
+                n++;
+                if (n >= 60) break;
+            }
+        }
+        return n > 0 ? (sum / n) : 55.0;
+    }
+
+    private static double inferMaxHr(List<RunActivity> allRuns) {
+        double peak = 0.0;
+        if (allRuns != null) {
+            for (RunActivity r : allRuns) {
+                if (r.maxHeartrate > peak && r.maxHeartrate <= 215.0) {
+                    peak = r.maxHeartrate;
+                }
+            }
+        }
+        return peak >= 165.0 ? peak : 188.0;
+    }
+
+    public static WellnessSummary computeWellnessSummary(
+            List<WellnessEntry> periodEntries,
+            List<RunActivity> periodRuns,
+            List<RunActivity> allRuns,
+            List<WellnessEntry> allWellness
+    ) {
+        WellnessSummary s = new WellnessSummary();
+        double vo2Sum = 0.0;
+        int vo2Count = 0;
         double rhrSum = 0.0;
         int rhrCount = 0;
         double hrvSum = 0.0;
         int hrvCount = 0;
         double sleepHrsSum = 0.0;
-        int sleepCount = 0;
+        int sleepHrsCount = 0;
+        double sleepScoreSum = 0.0;
+        int sleepScoreCount = 0;
 
-        // entries are ordered date DESC
-        for (WellnessEntry w : entries) {
-            s.entryCount++;
-            if (s.latestVo2max <= 0.0 && w.vo2max > 0.0) {
-                s.latestVo2max = w.vo2max;
-                s.latestVo2Date = w.date;
-            }
-            if (s.latestRestingHr <= 0.0 && w.restingHr > 25.0) {
-                s.latestRestingHr = w.restingHr;
-            }
-            if (s.latestHrv <= 0.0 && w.hrv > 0.0) {
-                s.latestHrv = w.hrv;
-            }
-            if (s.latestSleepScore <= 0.0 && w.sleepScore > 0.0) {
-                s.latestSleepScore = w.sleepScore;
-            }
-            if (s.latestWeight <= 0.0 && w.weight > 20.0) {
-                s.latestWeight = w.weight;
-            }
-
-            if (!w.getLocalDate().isBefore(cutoff30)) {
+        if (periodEntries != null) {
+            for (WellnessEntry w : periodEntries) {
+                s.entryCount++;
+                if (w.vo2max > 15.0) {
+                    if (s.latestVo2max <= 0.0) {
+                        s.latestVo2max = w.vo2max;
+                        s.latestVo2Date = w.date;
+                    }
+                    vo2Sum += w.vo2max;
+                    vo2Count++;
+                }
                 if (w.restingHr > 25.0) {
+                    if (s.latestRestingHr <= 0.0) s.latestRestingHr = w.restingHr;
                     rhrSum += w.restingHr;
                     rhrCount++;
                 }
                 if (w.hrv > 0.0) {
+                    if (s.latestHrv <= 0.0) s.latestHrv = w.hrv;
                     hrvSum += w.hrv;
                     hrvCount++;
                 }
+                if (w.sleepScore > 0.0) {
+                    if (s.latestSleepScore <= 0.0) s.latestSleepScore = w.sleepScore;
+                    sleepScoreSum += w.sleepScore;
+                    sleepScoreCount++;
+                }
                 if (w.sleepSecs > 3600) {
                     sleepHrsSum += w.getSleepHours();
-                    sleepCount++;
+                    sleepHrsCount++;
+                }
+                if (s.latestWeight <= 0.0 && w.weight > 20.0) {
+                    s.latestWeight = w.weight;
                 }
             }
         }
 
-        if (rhrCount > 0) s.avg30dRestingHr = rhrSum / rhrCount;
-        if (hrvCount > 0) s.avg30dHrv = hrvSum / hrvCount;
-        if (sleepCount > 0) s.avg30dSleepHours = sleepHrsSum / sleepCount;
+        if (vo2Count > 0) {
+            s.avgVo2max = vo2Sum / vo2Count;
+        } else if (periodRuns != null && !periodRuns.isEmpty()) {
+            // Fallback: estimate running VO2 Max from pace & heart rate when Garmin omits vo2max
+            double rhr = inferBaselineRestingHr(allWellness);
+            double mhr = inferMaxHr(allRuns);
+            double estSum = 0.0;
+            int estN = 0;
+            for (RunActivity r : periodRuns) {
+                double est = estimateRunVo2Max(r, rhr, mhr);
+                if (est > 0.0) {
+                    if (s.latestVo2max <= 0.0) {
+                        s.latestVo2max = est;
+                        s.latestVo2Date = r.getLocalDate().toString();
+                    }
+                    estSum += est;
+                    estN++;
+                }
+            }
+            if (estN > 0) {
+                s.avgVo2max = estSum / estN;
+                s.vo2IsEstimated = true;
+            }
+        }
+
+        if (rhrCount > 0) s.avgRestingHr = rhrSum / rhrCount;
+        if (hrvCount > 0) s.avgHrv = hrvSum / hrvCount;
+        if (sleepHrsCount > 0) s.avgSleepHours = sleepHrsSum / sleepHrsCount;
+        if (sleepScoreCount > 0) s.avgSleepScore = sleepScoreSum / sleepScoreCount;
         return s;
+    }
+
+    public static WellnessSummary computeWellnessSummary(List<WellnessEntry> entries) {
+        return computeWellnessSummary(entries, Collections.emptyList(), Collections.emptyList(), entries);
     }
 
     public static List<RunActivity> filterByPeriod(List<RunActivity> allRuns, int periodIndex) {
@@ -546,16 +678,22 @@ public class StatsCalculator {
         return new ArrayList<>(map.values());
     }
 
-    public static List<MonthlyWellnessPoint> computeMonthlyWellness(List<WellnessEntry> entries, int maxMonths) {
+    public static List<MonthlyWellnessPoint> computeMonthlyWellness(List<WellnessEntry> entries, List<RunActivity> allRuns, int maxMonths) {
         YearMonth current = YearMonth.now();
         YearMonth startYm;
         if (maxMonths > 0) {
             startYm = current.minusMonths(maxMonths - 1);
         } else {
             startYm = current.minusMonths(11);
-            if (entries != null && !entries.isEmpty()) {
+            if (entries != null) {
                 for (WellnessEntry w : entries) {
                     YearMonth ym = w.getYearMonth();
+                    if (ym.isBefore(startYm)) startYm = ym;
+                }
+            }
+            if (allRuns != null) {
+                for (RunActivity r : allRuns) {
+                    YearMonth ym = r.getYearMonth();
                     if (ym.isBefore(startYm)) startYm = ym;
                 }
             }
@@ -571,13 +709,15 @@ public class StatsCalculator {
             cursor = cursor.plusMonths(1);
         }
 
+        boolean hasGarminVo2 = false;
         if (entries != null) {
             for (WellnessEntry w : entries) {
                 MonthlyWellnessPoint mp = map.get(w.getYearMonth());
                 if (mp != null) {
-                    if (w.vo2max > 0.0) {
+                    if (w.vo2max > 15.0) {
                         mp.vo2Sum += w.vo2max;
                         mp.vo2Count++;
+                        hasGarminVo2 = true;
                     }
                     if (w.restingHr > 25.0) {
                         mp.rhrSum += w.restingHr;
@@ -586,6 +726,22 @@ public class StatsCalculator {
                     if (w.hrv > 0.0) {
                         mp.hrvSum += w.hrv;
                         mp.hrvCount++;
+                    }
+                }
+            }
+        }
+
+        // If Garmin wellness had no vo2max values, populate monthly VO2 Max estimates from runs
+        if (!hasGarminVo2 && allRuns != null && !allRuns.isEmpty()) {
+            double rhr = inferBaselineRestingHr(entries);
+            double mhr = inferMaxHr(allRuns);
+            for (RunActivity r : allRuns) {
+                MonthlyWellnessPoint mp = map.get(r.getYearMonth());
+                if (mp != null) {
+                    double est = estimateRunVo2Max(r, rhr, mhr);
+                    if (est > 15.0) {
+                        mp.vo2Sum += est;
+                        mp.vo2Count++;
                     }
                 }
             }
@@ -668,23 +824,24 @@ public class StatsCalculator {
             }
         }
 
-        WellnessSummary ws = computeWellnessSummary(wellness);
-        if (ws.entryCount > 0) {
+        WellnessSummary ws = computeWellnessSummary(wellness, allRuns, allRuns, wellness);
+        if (ws.entryCount > 0 || ws.avgVo2max > 0) {
             sb.append("\n=== GARMIN HEALTH & WELLNESS ===\n");
-            if (ws.latestVo2max > 0) {
-                sb.append(String.format(Locale.US, "VO2 Max: %.1f (as of %s)\n", ws.latestVo2max, ws.latestVo2Date));
+            if (ws.avgVo2max > 0) {
+                sb.append(String.format(Locale.US, "VO2 Max: %.1f%s (latest: %.1f)\n",
+                        ws.avgVo2max, ws.vo2IsEstimated ? " (est. from pace/HR)" : "", ws.latestVo2max));
             }
             if (ws.latestRestingHr > 0) {
-                sb.append(String.format(Locale.US, "Resting HR: %.0f bpm (30d avg: %.0f bpm)\n",
-                        ws.latestRestingHr, ws.avg30dRestingHr > 0 ? ws.avg30dRestingHr : ws.latestRestingHr));
+                sb.append(String.format(Locale.US, "Resting HR: %.0f bpm (avg: %.0f bpm)\n",
+                        ws.latestRestingHr, ws.avgRestingHr > 0 ? ws.avgRestingHr : ws.latestRestingHr));
             }
             if (ws.latestHrv > 0) {
-                sb.append(String.format(Locale.US, "HRV: %.0f ms (30d avg: %.0f ms)\n",
-                        ws.latestHrv, ws.avg30dHrv > 0 ? ws.avg30dHrv : ws.latestHrv));
+                sb.append(String.format(Locale.US, "HRV: %.0f ms (avg: %.0f ms)\n",
+                        ws.latestHrv, ws.avgHrv > 0 ? ws.avgHrv : ws.latestHrv));
             }
-            if (ws.latestSleepScore > 0 || ws.avg30dSleepHours > 0) {
-                sb.append(String.format(Locale.US, "Sleep: latest score %.0f | 30d avg %.1f hrs/night\n",
-                        ws.latestSleepScore, ws.avg30dSleepHours));
+            if (ws.avgSleepScore > 0 || ws.avgSleepHours > 0) {
+                sb.append(String.format(Locale.US, "Sleep: avg score %.0f | avg %.1f hrs/night\n",
+                        ws.avgSleepScore, ws.avgSleepHours));
             }
         }
 

@@ -293,24 +293,65 @@
       }));
   }
 
-  function computeWellnessSummary(entries) {
-    const s = { vo2: 0, vo2Date: "", rhr: 0, avg30Rhr: 0, hrv: 0, avg30Hrv: 0, sleepScore: 0, avg30SleepHrs: 0, count: entries.length };
-    const c30 = daysAgoYmd(30);
-    let rhrSum = 0, rhrN = 0, hrvSum = 0, hrvN = 0, slSum = 0, slN = 0;
+  function inferBaselineRhr(entries) {
+    let sum = 0, n = 0;
     for (const w of entries) {
-      if (!s.vo2 && w.vo2max > 0) { s.vo2 = w.vo2max; s.vo2Date = w.date; }
-      if (!s.rhr && w.restingHr > 25) s.rhr = w.restingHr;
-      if (!s.hrv && w.hrv > 0) s.hrv = w.hrv;
-      if (!s.sleepScore && w.sleepScore > 0) s.sleepScore = w.sleepScore;
-      if (w.date >= c30) {
-        if (w.restingHr > 25) { rhrSum += w.restingHr; rhrN++; }
-        if (w.hrv > 0) { hrvSum += w.hrv; hrvN++; }
-        if (w.sleepSecs > 3600) { slSum += w.sleepSecs / 3600; slN++; }
-      }
+      if (w.restingHr >= 35 && w.restingHr <= 85) { sum += w.restingHr; n++; if (n >= 60) break; }
     }
-    if (rhrN) s.avg30Rhr = rhrSum / rhrN;
-    if (hrvN) s.avg30Hrv = hrvSum / hrvN;
-    if (slN) s.avg30SleepHrs = slSum / slN;
+    return n > 0 ? sum / n : 55;
+  }
+
+  function inferMaxHr(runs) {
+    let peak = 0;
+    for (const r of runs) {
+      if (r.maxHr > peak && r.maxHr <= 215) peak = r.maxHr;
+    }
+    return peak >= 165 ? peak : 188;
+  }
+
+  function estimateRunVo2Max(r, restingHr, maxHr) {
+    if (!r || r.avgHr < 95 || r.movingTime < 720 || r.distance < 1500) return 0;
+    const rhr = restingHr >= 35 && restingHr <= 85 ? restingHr : 55;
+    const mhr = maxHr >= 155 && maxHr <= 215 ? maxHr : 188;
+    if (mhr <= rhr + 40) return 0;
+    const v = r.distance / (r.movingTime / 60);
+    if (v < 90 || v > 420) return 0;
+    const vo2AtSpeed = -4.60 + 0.182258 * v + 0.000104 * v * v;
+    const pctHrr = (r.avgHr - rhr) / (mhr - rhr);
+    if (pctHrr < 0.40 || pctHrr > 1.02) return 0;
+    const est = vo2AtSpeed / Math.max(0.45, Math.min(0.98, pctHrr));
+    return est >= 25 && est <= 82 ? est : 0;
+  }
+
+  function computeWellnessSummary(periodEntries, periodRuns = [], allRuns = state.runs, allWellness = state.wellness) {
+    const s = { vo2: 0, avgVo2: 0, vo2Est: false, vo2Date: "", rhr: 0, avgRhr: 0, hrv: 0, avgHrv: 0, sleepScore: 0, avgSleepScore: 0, avgSleepHrs: 0, count: periodEntries.length };
+    let vo2Sum = 0, vo2N = 0, rhrSum = 0, rhrN = 0, hrvSum = 0, hrvN = 0, slSum = 0, slN = 0, scSum = 0, scN = 0;
+    for (const w of periodEntries) {
+      if (w.vo2max > 15) { if (!s.vo2) { s.vo2 = w.vo2max; s.vo2Date = w.date; } vo2Sum += w.vo2max; vo2N++; }
+      if (w.restingHr > 25) { if (!s.rhr) s.rhr = w.restingHr; rhrSum += w.restingHr; rhrN++; }
+      if (w.hrv > 0) { if (!s.hrv) s.hrv = w.hrv; hrvSum += w.hrv; hrvN++; }
+      if (w.sleepScore > 0) { if (!s.sleepScore) s.sleepScore = w.sleepScore; scSum += w.sleepScore; scN++; }
+      if (w.sleepSecs > 3600) { slSum += w.sleepSecs / 3600; slN++; }
+    }
+    if (vo2N > 0) {
+      s.avgVo2 = vo2Sum / vo2N;
+    } else if (periodRuns.length > 0) {
+      const rhr = inferBaselineRhr(allWellness);
+      const mhr = inferMaxHr(allRuns);
+      let eSum = 0, eN = 0;
+      for (const r of periodRuns) {
+        const est = estimateRunVo2Max(r, rhr, mhr);
+        if (est > 0) {
+          if (!s.vo2) { s.vo2 = est; s.vo2Date = r.date; }
+          eSum += est; eN++;
+        }
+      }
+      if (eN > 0) { s.avgVo2 = eSum / eN; s.vo2Est = true; }
+    }
+    if (rhrN) s.avgRhr = rhrSum / rhrN;
+    if (hrvN) s.avgHrv = hrvSum / hrvN;
+    if (slN) s.avgSleepHrs = slSum / slN;
+    if (scN) s.avgSleepScore = scSum / scN;
     return s;
   }
 
@@ -370,16 +411,28 @@
     return Array.from(map.values());
   }
 
-  function computeMonthlyWellness(entries, maxMonths) {
-    const keys = buildMonthKeys(entries, maxMonths);
+  function computeMonthlyWellness(entries, runs, maxMonths) {
+    const combined = entries.length ? entries : runs;
+    const keys = buildMonthKeys(combined, maxMonths);
     const map = new Map(keys.map((k) => [k.ym, { ...k, vo2Sum: 0, vo2N: 0, rhrSum: 0, rhrN: 0 }]));
+    let hasGarminVo2 = false;
     for (const w of entries) {
       const mp = map.get(w.date.slice(0, 7));
       if (!mp) continue;
-      if (w.vo2max > 15) { mp.vo2Sum += w.vo2max; mp.vo2N++; }
+      if (w.vo2max > 15) { mp.vo2Sum += w.vo2max; mp.vo2N++; hasGarminVo2 = true; }
       if (w.restingHr > 25) { mp.rhrSum += w.restingHr; mp.rhrN++; }
     }
-    return Array.from(map.values());
+    if (!hasGarminVo2 && runs.length) {
+      const rhr = inferBaselineRhr(entries);
+      const mhr = inferMaxHr(runs);
+      for (const r of runs) {
+        const mp = map.get(r.date.slice(0, 7));
+        if (!mp) continue;
+        const est = estimateRunVo2Max(r, rhr, mhr);
+        if (est > 15) { mp.vo2Sum += est; mp.vo2N++; }
+      }
+    }
+    return { points: Array.from(map.values()), isEstimatedVo2: !hasGarminVo2 };
   }
 
   // ---------- Intervals.icu API (CORS-enabled /api/v1/) ----------
@@ -526,16 +579,24 @@
     };
   }
 
+  function firstPositive(obj, keys) {
+    for (const k of keys) {
+      const v = Number(obj[k]);
+      if (isFinite(v) && v > 0) return v;
+    }
+    return 0;
+  }
+
   function parseIntervalsWellness(item) {
     const date = (item.id || "").slice(0, 10);
     if (date.length !== 10) return null;
     const w = {
       date,
-      vo2max: Number(item.vo2max) || 0,
-      restingHr: Number(item.restingHR) || 0,
-      hrv: Number(item.hrv) || 0,
+      vo2max: firstPositive(item, ["vo2max", "vo2Max", "VO2Max", "vo2_max", "GarminVO2Max", "VO2MaxGarmin"]),
+      restingHr: firstPositive(item, ["restingHR", "resting_hr", "restingHr"]),
+      hrv: firstPositive(item, ["hrv", "hrvRMSSD", "hrvSDNN"]),
       sleepSecs: Number(item.sleepSecs) || 0,
-      sleepScore: Number(item.sleepScore) || 0,
+      sleepScore: firstPositive(item, ["sleepScore", "sleep_score"]),
       weight: Number(item.weight) || 0,
       isSample: false
     };
@@ -805,13 +866,13 @@
       }
     }
 
-    const ws = computeWellnessSummary(state.wellness);
-    if (ws.count > 0) {
+    const ws = computeWellnessSummary(state.wellness, state.runs, state.runs, state.wellness);
+    if (ws.count > 0 || ws.avgVo2 > 0) {
       lines.push("\n=== GARMIN WELLNESS ===");
-      if (ws.vo2) lines.push(`VO2 Max: ${ws.vo2.toFixed(1)} (${ws.vo2Date})`);
-      if (ws.rhr) lines.push(`Resting HR: ${Math.round(ws.rhr)} bpm (30d avg: ${Math.round(ws.avg30Rhr || ws.rhr)} bpm)`);
-      if (ws.hrv) lines.push(`HRV: ${Math.round(ws.hrv)} ms (30d avg: ${Math.round(ws.avg30Hrv || ws.hrv)} ms)`);
-      if (ws.sleepScore || ws.avg30SleepHrs) lines.push(`Sleep: score ${Math.round(ws.sleepScore)}, 30d avg ${ws.avg30SleepHrs.toFixed(1)}h`);
+      if (ws.avgVo2) lines.push(`VO2 Max: ${ws.avgVo2.toFixed(1)}${ws.vo2Est ? " (est. from pace/HR)" : ""}`);
+      if (ws.rhr) lines.push(`Resting HR: ${Math.round(ws.rhr)} bpm (avg: ${Math.round(ws.avgRhr || ws.rhr)} bpm)`);
+      if (ws.hrv) lines.push(`HRV: ${Math.round(ws.hrv)} ms (avg: ${Math.round(ws.avgHrv || ws.hrv)} ms)`);
+      if (ws.avgSleepScore || ws.avgSleepHrs) lines.push(`Sleep: avg score ${Math.round(ws.avgSleepScore)}, avg ${ws.avgSleepHrs.toFixed(1)}h`);
     }
 
     lines.push("\n=== YEARLY BREAKDOWN ===");
@@ -932,36 +993,72 @@
   }
 
   // ---------- Rendering ----------
+  function fmtCompareHtml(prevLabel, curr, prev) {
+    if (!prev.count && prev.dist <= 0) {
+      return `vs ${prevLabel}: no runs recorded`;
+    }
+    const diff = curr.dist - prev.dist;
+    const sign = diff >= 0 ? "+" : "-";
+    const cls = diff >= 0 ? "up" : "down";
+    const pct = prev.dist > 100 ? ` (${diff >= 0 ? "+" : ""}${Math.round((diff / prev.dist) * 100)}%)` : "";
+    return `vs ${prevLabel}: ${fmtDistance(prev.dist)} (${prev.count} runs) &bull; <span class="${cls}">${sign}${fmtDistance(Math.abs(diff))}${pct}</span>`;
+  }
+
   function renderProgress() {
     const today = todayYmd();
+    const now = new Date();
     const weekStart = mondayOf(today);
+    const prevWkStartDate = new Date(weekStart + "T12:00:00");
+    prevWkStartDate.setDate(prevWkStartDate.getDate() - 7);
+    const prevWkEndDate = new Date(weekStart + "T12:00:00");
+    prevWkEndDate.setDate(prevWkEndDate.getDate() - 1);
+    const toYmd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const prevWeekStart = toYmd(prevWkStartDate);
+    const prevWeekEnd = toYmd(prevWkEndDate);
+
     const thisMonth = today.slice(0, 7);
+    const prevMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const prevMonthYm = `${prevMonthDate.getFullYear()}-${String(prevMonthDate.getMonth() + 1).padStart(2, "0")}`;
+    const prevMonthName = prevMonthDate.toLocaleDateString("en-US", { month: "short" });
+
     const thisYear = today.slice(0, 4);
+    const prevYear = String(now.getFullYear() - 1);
 
     const wkRunsList = state.runs.filter((r) => r.date >= weekStart && r.date <= today);
+    const prevWkRuns = state.runs.filter((r) => r.date >= prevWeekStart && r.date <= prevWeekEnd);
     const moRunsList = state.runs.filter((r) => r.date.startsWith(thisMonth));
+    const prevMoRuns = state.runs.filter((r) => r.date.startsWith(prevMonthYm));
     const yrRunsList = state.runs.filter((r) => r.date.startsWith(thisYear));
+    const prevYrRuns = state.runs.filter((r) => r.date.startsWith(prevYear));
 
     const wkSum = computeSummary(wkRunsList);
+    const prevWkSum = computeSummary(prevWkRuns);
     const moSum = computeSummary(moRunsList);
+    const prevMoSum = computeSummary(prevMoRuns);
     const yrSum = computeSummary(yrRunsList);
+    const prevYrSum = computeSummary(prevYrRuns);
     const allSum = computeSummary(state.runs);
 
     $("wkRuns").textContent = wkSum.count;
     $("wkTime").textContent = fmtDuration(wkSum.moving);
     $("wkDistance").textContent = fmtDistance(wkSum.dist);
+    $("wkCompare").innerHTML = fmtCompareHtml("Last Week", wkSum, prevWkSum);
 
     $("moRuns").textContent = moSum.count;
     $("moTime").textContent = fmtDuration(moSum.moving);
     $("moDistance").textContent = fmtDistance(moSum.dist);
+    $("moCompare").innerHTML = fmtCompareHtml(prevMonthName, moSum, prevMoSum);
 
     $("yrRuns").textContent = yrSum.count;
     $("yrTime").textContent = fmtDuration(yrSum.moving);
     $("yrDistance").textContent = fmtDistance(yrSum.dist);
+    $("yrCompare").innerHTML = fmtCompareHtml(prevYear, yrSum, prevYrSum);
 
     $("allRuns").textContent = allSum.count;
     $("allTime").textContent = fmtDuration(allSum.moving);
     $("allDistance").textContent = fmtDistance(allSum.dist);
+    const yrCount = new Set(state.runs.map((r) => r.date.slice(0, 4))).size;
+    $("allCompare").textContent = yrCount > 0 ? `Across ${yrCount} ${yrCount === 1 ? "year" : "years"} • Avg ${fmtDistance(allSum.dist / yrCount)}/yr` : "";
 
     if (state.prefs.intervalsKey) {
       const who = state.prefs.athleteName || "Garmin Sync Ready";
@@ -974,6 +1071,10 @@
       $("btnDashSync").textContent = "Connect";
     }
 
+    const periodLabel = state.period === "week" ? "This Week"
+      : state.period === "month" ? "This Month"
+      : state.period === "year" ? "This Year" : "All Time";
+
     const filtered = state.period === "week" ? wkRunsList
       : state.period === "month" ? moRunsList
       : state.period === "year" ? yrRunsList
@@ -985,15 +1086,21 @@
     $("statPace").textContent = fmtPace(sum.avgPaceSec);
     $("statHrElev").textContent = `${sum.hrCount ? fmtHr(sum.avgHr) : "-- bpm"}\n+${fmtElevation(sum.elev)}`;
 
-    // Wellness
-    const ws = computeWellnessSummary(state.wellness);
-    $("healthVo2").textContent = ws.vo2 ? ws.vo2.toFixed(1) : "--";
-    $("healthRhr").textContent = ws.rhr ? `${Math.round(ws.rhr)} bpm${ws.avg30Rhr ? ` (30d: ${Math.round(ws.avg30Rhr)})` : ""}` : "--";
-    $("healthHrv").textContent = ws.hrv ? `${Math.round(ws.hrv)} ms${ws.avg30Hrv ? ` (30d: ${Math.round(ws.avg30Hrv)})` : ""}` : "--";
-    if (ws.sleepScore || ws.avg30SleepHrs) {
+    // Wellness — tied to the selected Detailed Breakdown period!
+    $("healthPeriodTitle").textContent = `Garmin Health & Readiness (${periodLabel})`;
+    const filteredWell = state.period === "week" ? state.wellness.filter((w) => w.date >= weekStart && w.date <= today)
+      : state.period === "month" ? state.wellness.filter((w) => w.date.startsWith(thisMonth))
+      : state.period === "year" ? state.wellness.filter((w) => w.date.startsWith(thisYear))
+      : state.wellness;
+
+    const ws = computeWellnessSummary(filteredWell, filtered, state.runs, state.wellness);
+    $("healthVo2").textContent = ws.avgVo2 ? `${ws.avgVo2.toFixed(1)}${ws.vo2Est ? " (est)" : ""}` : "--";
+    $("healthRhr").textContent = ws.avgRhr ? `${Math.round(ws.avgRhr)} bpm` : "--";
+    $("healthHrv").textContent = ws.avgHrv ? `${Math.round(ws.avgHrv)} ms` : "--";
+    if (ws.avgSleepScore || ws.avgSleepHrs) {
       const parts = [];
-      if (ws.avg30SleepHrs) parts.push(`${ws.avg30SleepHrs.toFixed(1)}h`);
-      if (ws.sleepScore) parts.push(`Score ${Math.round(ws.sleepScore)}`);
+      if (ws.avgSleepHrs) parts.push(`${ws.avgSleepHrs.toFixed(1)}h`);
+      if (ws.avgSleepScore) parts.push(`Score ${Math.round(ws.avgSleepScore)}`);
       $("healthSleep").textContent = parts.join(" • ");
     } else {
       $("healthSleep").textContent = "--";
@@ -1224,13 +1331,15 @@
     }
 
     // 4. Wellness Chart
-    const mWell = computeMonthlyWellness(state.wellness, state.chartMonths);
+    const mWellObj = computeMonthlyWellness(state.wellness, state.runs, state.chartMonths);
+    const mWell = mWellObj.points;
+    const vo2Label = mWellObj.isEstimatedVo2 ? "Est. VO2 Max" : "VO2 Max";
     const vo2Vals = mWell.map((m) => (m.vo2N ? +(m.vo2Sum / m.vo2N).toFixed(1) : null));
     const rhrVals = mWell.map((m) => (m.rhrN ? +(m.rhrSum / m.rhrN).toFixed(1) : null));
     const hasWell = vo2Vals.some((v) => v !== null) || rhrVals.some((v) => v !== null);
     $("wellnessChartNote").textContent = hasWell
-      ? "Blue = VO2 Max (left) • Cyan = Resting HR bpm (right)"
-      : "Sync with Intervals.icu (or load sample data) to see Garmin VO2 Max & Resting HR trends.";
+      ? `Blue = ${vo2Label} (left) • Cyan = Resting HR bpm (right)`
+      : "Sync with Intervals.icu (or load sample data) to see VO2 Max & Resting HR trends.";
 
     mountChart("wellness", "chartWellness", {
       type: "line",
@@ -1238,7 +1347,7 @@
         labels: mWell.map((m) => m.label),
         datasets: [
           {
-            label: "VO2 Max",
+            label: vo2Label,
             data: vo2Vals,
             yAxisID: "yVo2",
             borderColor: blue,

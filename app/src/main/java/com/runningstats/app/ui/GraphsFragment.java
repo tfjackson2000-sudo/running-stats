@@ -148,7 +148,7 @@ public class GraphsFragment extends Fragment implements RefreshableFragment {
         renderPaceHrChart(monthly, useMiles, primaryBlue, indigo, textSecondary);
         renderEfficiencyChart(allRuns, monthly, cyan, textSecondary);
         renderHrZoneBreakdown(allRuns, useMiles);
-        renderWellnessChart(allWellness, primaryBlue, cyan, textSecondary);
+        renderWellnessChart(allWellness, allRuns, primaryBlue, cyan, textSecondary);
         renderYearlyChart(allRuns, useMiles, unit, primaryBlue, textSecondary);
         renderCumulativeChart(allRuns, useMiles, new int[]{slate, indigo, cyan, primaryBlue}, textSecondary);
         renderMonthlyChart(monthly, useMiles, cyan, textSecondary);
@@ -353,17 +353,21 @@ public class GraphsFragment extends Fragment implements RefreshableFragment {
         tvHrZoneBreakdown.setText(sb.toString());
     }
 
-    private void renderWellnessChart(List<WellnessEntry> allWellness, int vo2Color, int rhrColor, int axisColor) {
-        if (allWellness == null || allWellness.isEmpty()) {
-            tvWellnessChartNote.setText("Tap Sync in You → Settings to pull Garmin VO2 Max, Resting HR & HRV from Intervals.icu.");
-            chartWellness.clear();
-            return;
-        }
-
-        List<StatsCalculator.MonthlyWellnessPoint> months = StatsCalculator.computeMonthlyWellness(allWellness, selectedMonths);
+    private void renderWellnessChart(List<WellnessEntry> allWellness, List<RunActivity> allRuns, int vo2Color, int rhrColor, int axisColor) {
+        List<StatsCalculator.MonthlyWellnessPoint> months = StatsCalculator.computeMonthlyWellness(allWellness, allRuns, selectedMonths);
         List<Entry> vo2Entries = new ArrayList<>();
         List<Entry> rhrEntries = new ArrayList<>();
         List<String> labels = new ArrayList<>();
+
+        boolean hasGarminVo2 = false;
+        if (allWellness != null) {
+            for (WellnessEntry w : allWellness) {
+                if (w.vo2max > 15.0) {
+                    hasGarminVo2 = true;
+                    break;
+                }
+            }
+        }
 
         for (int i = 0; i < months.size(); i++) {
             StatsCalculator.MonthlyWellnessPoint mp = months.get(i);
@@ -377,8 +381,9 @@ public class GraphsFragment extends Fragment implements RefreshableFragment {
         }
 
         List<ILineDataSet> dataSets = new ArrayList<>();
+        String vo2Label = hasGarminVo2 ? "VO2 Max" : "Est. VO2 Max";
         if (!vo2Entries.isEmpty()) {
-            LineDataSet vo2Set = new LineDataSet(vo2Entries, "VO2 Max");
+            LineDataSet vo2Set = new LineDataSet(vo2Entries, vo2Label);
             vo2Set.setAxisDependency(YAxis.AxisDependency.LEFT);
             vo2Set.setColor(vo2Color);
             vo2Set.setCircleColor(vo2Color);
@@ -399,12 +404,12 @@ public class GraphsFragment extends Fragment implements RefreshableFragment {
         }
 
         if (dataSets.isEmpty()) {
-            tvWellnessChartNote.setText("No VO2 Max or Resting HR wellness records synced yet.");
+            tvWellnessChartNote.setText("Sync with Intervals.icu to see VO2 Max & Resting HR trends.");
             chartWellness.clear();
             return;
         }
 
-        tvWellnessChartNote.setText("Blue = VO2 Max (left) • Cyan = Resting HR bpm (right)");
+        tvWellnessChartNote.setText("Blue = " + vo2Label + " (left) • Cyan = Resting HR bpm (right)");
         chartWellness.setData(new LineData(dataSets));
         chartWellness.getDescription().setEnabled(false);
 

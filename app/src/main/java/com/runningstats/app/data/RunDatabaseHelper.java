@@ -273,6 +273,56 @@ public class RunDatabaseHelper extends SQLiteOpenHelper {
         db.delete(TABLE_WELLNESS, "is_sample = 1", null);
     }
 
+    /**
+     * Merges VO2 Max values extracted from activity records into existing wellness rows
+     * (or inserts minimal rows) without overwriting non-zero Garmin wellness VO2 Max values.
+     */
+    public void mergeActivityVo2Max(java.util.Map<String, Double> dateToVo2) {
+        if (dateToVo2 == null || dateToVo2.isEmpty()) return;
+        SQLiteDatabase db = getWritableDatabase();
+        db.beginTransaction();
+        try {
+            for (java.util.Map.Entry<String, Double> entry : dateToVo2.entrySet()) {
+                String date = entry.getKey();
+                double vo2 = entry.getValue();
+                if (date == null || date.length() < 10 || vo2 <= 15.0) continue;
+                Cursor c = db.query(TABLE_WELLNESS, new String[]{"vo2max"}, "date = ?", new String[]{date}, null, null, null);
+                boolean exists = false;
+                double existingVo2 = 0.0;
+                try {
+                    if (c.moveToFirst()) {
+                        exists = true;
+                        existingVo2 = c.getDouble(0);
+                    }
+                } finally {
+                    c.close();
+                }
+                if (exists) {
+                    if (existingVo2 <= 15.0) {
+                        ContentValues cv = new ContentValues();
+                        cv.put("vo2max", vo2);
+                        cv.put("is_sample", 0);
+                        db.update(TABLE_WELLNESS, cv, "date = ?", new String[]{date});
+                    }
+                } else {
+                    ContentValues cv = new ContentValues();
+                    cv.put("date", date);
+                    cv.put("vo2max", vo2);
+                    cv.put("resting_hr", 0.0);
+                    cv.put("hrv", 0.0);
+                    cv.put("sleep_secs", 0);
+                    cv.put("sleep_score", 0.0);
+                    cv.put("weight", 0.0);
+                    cv.put("is_sample", 0);
+                    db.insertWithOnConflict(TABLE_WELLNESS, null, cv, SQLiteDatabase.CONFLICT_IGNORE);
+                }
+            }
+            db.setTransactionSuccessful();
+        } finally {
+            db.endTransaction();
+        }
+    }
+
     public void clearAllRuns() {
         SQLiteDatabase db = getWritableDatabase();
         db.delete(TABLE_RUNS, null, null);

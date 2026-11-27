@@ -86,7 +86,7 @@ public class IntervalsClient {
                 if (listener != null) {
                     listener.onProgress("Syncing runs since " + oldest + "...");
                 }
-                List<RunActivity> fetched = fetchRunsRange(apiKey, oldest, today);
+                List<RunActivity> fetched = fetchRunsRange(apiKey, oldest, today, db);
                 if (!fetched.isEmpty()) {
                     db.deleteSampleRuns();
                     totalRunsSaved += db.upsertRuns(fetched);
@@ -107,7 +107,7 @@ public class IntervalsClient {
                 listener.onProgress("Syncing runs " + chunkStart + "–" + yr + " (" + totalRunsSaved + " saved)...");
             }
 
-            List<RunActivity> chunk = fetchRunsRange(apiKey, oldest, newest);
+            List<RunActivity> chunk = fetchRunsRange(apiKey, oldest, newest, db);
             if (!chunk.isEmpty()) {
                 if (!clearedSample) {
                     db.deleteSampleRuns();
@@ -181,12 +181,13 @@ public class IntervalsClient {
         return totalSaved;
     }
 
-    private static List<RunActivity> fetchRunsRange(String apiKey, LocalDate oldest, LocalDate newest) throws Exception {
+    private static List<RunActivity> fetchRunsRange(String apiKey, LocalDate oldest, LocalDate newest, RunDatabaseHelper db) throws Exception {
         String url = BASE_URL + "/activities?oldest=" + oldest + "&newest=" + newest;
         String body = getWithBasicAuth(url, apiKey);
         JSONArray array = new JSONArray(body);
 
         List<RunActivity> runs = new ArrayList<>();
+        java.util.Map<String, Double> activityVo2 = new java.util.HashMap<>();
         for (int i = 0; i < array.length(); i++) {
             JSONObject item = array.getJSONObject(i);
 
@@ -219,11 +220,19 @@ public class IntervalsClient {
             double avgCadence = optDoubleSafe(item, "average_cadence", 0.0);
             double trainingLoad = optDoubleSafe(item, "icu_training_load", 0.0);
 
+            double actVo2 = optFirstDouble(item, "vo2max", "VO2MaxGarmin", "GarminVO2Max", "vo2Max", "VO2Max", "icu_vo2max");
+            if (actVo2 > 15.0 && startDateLocal.length() >= 10) {
+                activityVo2.put(startDateLocal.substring(0, 10), actVo2);
+            }
+
             runs.add(new RunActivity(
                     id, name, type, startEpoch, startDateLocal,
                     distance, movingTime, elapsedTime, elevation,
                     avgHr, maxHr, avgCadence, trainingLoad
             ));
+        }
+        if (!activityVo2.isEmpty() && db != null) {
+            db.mergeActivityVo2Max(activityVo2);
         }
         return runs;
     }
@@ -240,11 +249,11 @@ public class IntervalsClient {
             if (idDate.length() < 10) continue;
             idDate = idDate.substring(0, 10);
 
-            double vo2max = optDoubleSafe(item, "vo2max", 0.0);
-            double restingHr = optDoubleSafe(item, "restingHR", 0.0);
-            double hrv = optDoubleSafe(item, "hrv", 0.0);
+            double vo2max = optFirstDouble(item, "vo2max", "vo2Max", "VO2Max", "vo2_max", "GarminVO2Max", "VO2MaxGarmin");
+            double restingHr = optFirstDouble(item, "restingHR", "resting_hr", "restingHr");
+            double hrv = optFirstDouble(item, "hrv", "hrvRMSSD", "hrvSDNN");
             int sleepSecs = optIntSafe(item, "sleepSecs", 0);
-            double sleepScore = optDoubleSafe(item, "sleepScore", 0.0);
+            double sleepScore = optFirstDouble(item, "sleepScore", "sleep_score");
             double weight = optDoubleSafe(item, "weight", 0.0);
 
             WellnessEntry entry = new WellnessEntry(
@@ -255,6 +264,14 @@ public class IntervalsClient {
             }
         }
         return list;
+    }
+
+    private static double optFirstDouble(JSONObject obj, String... keys) {
+        for (String key : keys) {
+            double val = optDoubleSafe(obj, key, 0.0);
+            if (val > 0.0) return val;
+        }
+        return 0.0;
     }
 
     private static boolean isRunningType(String type) {

@@ -23,24 +23,18 @@ import com.runningstats.app.model.WellnessEntry;
 import com.runningstats.app.util.FormatUtils;
 
 import java.time.LocalDate;
+import java.time.YearMonth;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
 
 public class DashboardFragment extends Fragment implements RefreshableFragment {
 
     private SwipeRefreshLayout swipeRefresh;
-    private TextView tvWeekRuns;
-    private TextView tvWeekTime;
-    private TextView tvWeekDistance;
-    private TextView tvMonthRuns;
-    private TextView tvMonthTime;
-    private TextView tvMonthDistance;
-    private TextView tvYearRuns;
-    private TextView tvYearTime;
-    private TextView tvYearDistance;
-    private TextView tvAllRuns;
-    private TextView tvAllTime;
-    private TextView tvAllDistance;
+    private TextView tvWeekRuns, tvWeekTime, tvWeekDistance, tvWeekCompare;
+    private TextView tvMonthRuns, tvMonthTime, tvMonthDistance, tvMonthCompare;
+    private TextView tvYearRuns, tvYearTime, tvYearDistance, tvYearCompare;
+    private TextView tvAllRuns, tvAllTime, tvAllDistance, tvAllCompare;
     private TextView tvSyncStatus;
     private TextView tvSyncSubtitle;
     private MaterialButton btnSyncNow;
@@ -51,6 +45,7 @@ public class DashboardFragment extends Fragment implements RefreshableFragment {
     private TextView tvStatRuns;
     private TextView tvStatPace;
     private TextView tvStatHrElev;
+    private TextView tvHealthPeriodTitle;
     private TextView tvHealthVo2;
     private TextView tvHealthRhr;
     private TextView tvHealthHrv;
@@ -75,15 +70,19 @@ public class DashboardFragment extends Fragment implements RefreshableFragment {
         tvWeekRuns = view.findViewById(R.id.tvWeekRuns);
         tvWeekTime = view.findViewById(R.id.tvWeekTime);
         tvWeekDistance = view.findViewById(R.id.tvWeekDistance);
+        tvWeekCompare = view.findViewById(R.id.tvWeekCompare);
         tvMonthRuns = view.findViewById(R.id.tvMonthRuns);
         tvMonthTime = view.findViewById(R.id.tvMonthTime);
         tvMonthDistance = view.findViewById(R.id.tvMonthDistance);
+        tvMonthCompare = view.findViewById(R.id.tvMonthCompare);
         tvYearRuns = view.findViewById(R.id.tvYearRuns);
         tvYearTime = view.findViewById(R.id.tvYearTime);
         tvYearDistance = view.findViewById(R.id.tvYearDistance);
+        tvYearCompare = view.findViewById(R.id.tvYearCompare);
         tvAllRuns = view.findViewById(R.id.tvAllRuns);
         tvAllTime = view.findViewById(R.id.tvAllTime);
         tvAllDistance = view.findViewById(R.id.tvAllDistance);
+        tvAllCompare = view.findViewById(R.id.tvAllCompare);
         tvSyncStatus = view.findViewById(R.id.tvSyncStatus);
         tvSyncSubtitle = view.findViewById(R.id.tvSyncSubtitle);
         btnSyncNow = view.findViewById(R.id.btnSyncNow);
@@ -94,6 +93,7 @@ public class DashboardFragment extends Fragment implements RefreshableFragment {
         tvStatRuns = view.findViewById(R.id.tvStatRuns);
         tvStatPace = view.findViewById(R.id.tvStatPace);
         tvStatHrElev = view.findViewById(R.id.tvStatHrElev);
+        tvHealthPeriodTitle = view.findViewById(R.id.tvHealthPeriodTitle);
         tvHealthVo2 = view.findViewById(R.id.tvHealthVo2);
         tvHealthRhr = view.findViewById(R.id.tvHealthRhr);
         tvHealthHrv = view.findViewById(R.id.tvHealthHrv);
@@ -181,27 +181,48 @@ public class DashboardFragment extends Fragment implements RefreshableFragment {
         List<RunActivity> allRuns = host.getDb().getAllRuns();
         List<WellnessEntry> allWellness = host.getDb().getAllWellness();
 
-        // Multi-Period Snapshots (This Week / This Month / This Year / All Time)
+        // Multi-Period Snapshots + Comparisons
         StatsCalculator.SummaryStats wkSum = StatsCalculator.computeSummary(StatsCalculator.filterByPeriod(allRuns, 0));
+        StatsCalculator.SummaryStats prevWkSum = StatsCalculator.computeSummary(StatsCalculator.filterByPreviousPeriod(allRuns, 0));
         StatsCalculator.SummaryStats moSum = StatsCalculator.computeSummary(StatsCalculator.filterByPeriod(allRuns, 1));
+        StatsCalculator.SummaryStats prevMoSum = StatsCalculator.computeSummary(StatsCalculator.filterByPreviousPeriod(allRuns, 1));
         StatsCalculator.SummaryStats yrSum = StatsCalculator.computeSummary(StatsCalculator.filterByPeriod(allRuns, 2));
+        StatsCalculator.SummaryStats prevYrSum = StatsCalculator.computeSummary(StatsCalculator.filterByPreviousPeriod(allRuns, 2));
         StatsCalculator.SummaryStats allSum = StatsCalculator.computeSummary(allRuns);
+
+        String prevMonthName = YearMonth.now().minusMonths(1).format(DateTimeFormatter.ofPattern("MMM", Locale.US));
+        String prevYearName = String.valueOf(LocalDate.now().getYear() - 1);
 
         tvWeekRuns.setText(String.valueOf(wkSum.runCount));
         tvWeekTime.setText(FormatUtils.formatDuration(wkSum.totalMovingSeconds));
         tvWeekDistance.setText(FormatUtils.formatDistance(wkSum.totalDistanceMeters, useMiles));
+        tvWeekCompare.setText(formatCompareLine("Last Week", wkSum, prevWkSum, useMiles));
 
         tvMonthRuns.setText(String.valueOf(moSum.runCount));
         tvMonthTime.setText(FormatUtils.formatDuration(moSum.totalMovingSeconds));
         tvMonthDistance.setText(FormatUtils.formatDistance(moSum.totalDistanceMeters, useMiles));
+        tvMonthCompare.setText(formatCompareLine(prevMonthName, moSum, prevMoSum, useMiles));
 
         tvYearRuns.setText(String.valueOf(yrSum.runCount));
         tvYearTime.setText(FormatUtils.formatDuration(yrSum.totalMovingSeconds));
         tvYearDistance.setText(FormatUtils.formatDistance(yrSum.totalDistanceMeters, useMiles));
+        tvYearCompare.setText(formatCompareLine(prevYearName, yrSum, prevYrSum, useMiles));
 
         tvAllRuns.setText(String.valueOf(allSum.runCount));
         tvAllTime.setText(FormatUtils.formatDuration(allSum.totalMovingSeconds));
         tvAllDistance.setText(FormatUtils.formatDistance(allSum.totalDistanceMeters, useMiles));
+        int yrCount = StatsCalculator.getAvailableYears(allRuns).size();
+        if (yrCount > 0) {
+            tvAllCompare.setText(String.format(
+                    Locale.US,
+                    "Across %d %s • Avg %s/yr",
+                    yrCount,
+                    yrCount == 1 ? "year" : "years",
+                    FormatUtils.formatDistance(allSum.totalDistanceMeters / yrCount, useMiles)
+            ));
+        } else {
+            tvAllCompare.setText("");
+        }
 
         if (prefs.isIntervalsConnected()) {
             String athlete = prefs.getAthleteName();
@@ -213,7 +234,7 @@ public class DashboardFragment extends Fragment implements RefreshableFragment {
                     allRuns.size(),
                     FormatUtils.formatTimestamp(prefs.getLastSyncMs())
             ));
-            tvSyncSubtitle.setText("Pull down anytime to fetch your newest Garmin runs & health.");
+            tvSyncSubtitle.setText("Auto-syncs on open or pull down to refresh.");
             btnSyncNow.setText("Sync");
         } else {
             tvSyncStatus.setText(allRuns.isEmpty()
@@ -222,6 +243,11 @@ public class DashboardFragment extends Fragment implements RefreshableFragment {
             tvSyncSubtitle.setText("Connect free Garmin sync via Intervals.icu in You → Settings.");
             btnSyncNow.setText("Connect");
         }
+
+        // Selected Period Detailed Breakdown
+        String periodName = selectedPeriod == 0 ? "This Week"
+                : (selectedPeriod == 1 ? "This Month"
+                : (selectedPeriod == 2 ? "This Year" : "All Time"));
 
         List<RunActivity> periodRuns = StatsCalculator.filterByPeriod(allRuns, selectedPeriod);
         StatsCalculator.SummaryStats summary = StatsCalculator.computeSummary(periodRuns);
@@ -234,29 +260,36 @@ public class DashboardFragment extends Fragment implements RefreshableFragment {
         String elevPart = "+" + FormatUtils.formatElevation(summary.totalElevationMeters, useMiles);
         tvStatHrElev.setText(hrPart + "\n" + elevPart);
 
-        // Garmin Health & Readiness
-        StatsCalculator.WellnessSummary ws = StatsCalculator.computeWellnessSummary(allWellness);
-        tvHealthVo2.setText(ws.latestVo2max > 0 ? String.format(Locale.US, "%.1f", ws.latestVo2max) : "--");
-        if (ws.latestRestingHr > 0) {
-            String avgPart = ws.avg30dRestingHr > 0 ? String.format(Locale.US, " (30d: %.0f)", ws.avg30dRestingHr) : "";
-            tvHealthRhr.setText(String.format(Locale.US, "%.0f bpm%s", ws.latestRestingHr, avgPart));
+        // Garmin Health & Readiness — tied to the selected Detailed Breakdown period!
+        tvHealthPeriodTitle.setText("Garmin Health & Readiness (" + periodName + ")");
+        List<WellnessEntry> periodWellness = StatsCalculator.filterWellnessByPeriod(allWellness, selectedPeriod);
+        StatsCalculator.WellnessSummary ws = StatsCalculator.computeWellnessSummary(
+                periodWellness, periodRuns, allRuns, allWellness
+        );
+
+        if (ws.avgVo2max > 0) {
+            tvHealthVo2.setText(String.format(Locale.US, "%.1f%s", ws.avgVo2max, ws.vo2IsEstimated ? " (est)" : ""));
+        } else {
+            tvHealthVo2.setText("--");
+        }
+        if (ws.avgRestingHr > 0) {
+            tvHealthRhr.setText(String.format(Locale.US, "%.0f bpm", ws.avgRestingHr));
         } else {
             tvHealthRhr.setText("--");
         }
-        if (ws.latestHrv > 0) {
-            String avgPart = ws.avg30dHrv > 0 ? String.format(Locale.US, " (30d: %.0f)", ws.avg30dHrv) : "";
-            tvHealthHrv.setText(String.format(Locale.US, "%.0f ms%s", ws.latestHrv, avgPart));
+        if (ws.avgHrv > 0) {
+            tvHealthHrv.setText(String.format(Locale.US, "%.0f ms", ws.avgHrv));
         } else {
             tvHealthHrv.setText("--");
         }
-        if (ws.latestSleepScore > 0 || ws.avg30dSleepHours > 0) {
+        if (ws.avgSleepScore > 0 || ws.avgSleepHours > 0) {
             StringBuilder sleepSb = new StringBuilder();
-            if (ws.avg30dSleepHours > 0) {
-                sleepSb.append(String.format(Locale.US, "%.1fh", ws.avg30dSleepHours));
+            if (ws.avgSleepHours > 0) {
+                sleepSb.append(String.format(Locale.US, "%.1fh", ws.avgSleepHours));
             }
-            if (ws.latestSleepScore > 0) {
+            if (ws.avgSleepScore > 0) {
                 if (sleepSb.length() > 0) sleepSb.append(" • ");
-                sleepSb.append(String.format(Locale.US, "Score %.0f", ws.latestSleepScore));
+                sleepSb.append(String.format(Locale.US, "Score %.0f", ws.avgSleepScore));
             }
             tvHealthSleep.setText(sleepSb.toString());
         } else {
@@ -318,7 +351,7 @@ public class DashboardFragment extends Fragment implements RefreshableFragment {
 
         // Period Highlights
         if (periodRuns.isEmpty()) {
-            tvHighlights.setText("No runs recorded in this period yet.");
+            tvHighlights.setText("No runs recorded in " + periodName.toLowerCase(Locale.US) + " yet.");
         } else {
             StringBuilder hiSb = new StringBuilder();
             hiSb.append("• Total moving time: ").append(FormatUtils.formatDuration(summary.totalMovingSeconds));
@@ -340,6 +373,29 @@ public class DashboardFragment extends Fragment implements RefreshableFragment {
             }
             tvHighlights.setText(hiSb.toString());
         }
+    }
+
+    private String formatCompareLine(String prevLabel, StatsCalculator.SummaryStats curr, StatsCalculator.SummaryStats prev, boolean useMiles) {
+        if (prev.runCount == 0 && prev.totalDistanceMeters <= 0.0) {
+            return "vs " + prevLabel + ": no runs recorded";
+        }
+        double diffMeters = curr.totalDistanceMeters - prev.totalDistanceMeters;
+        String sign = diffMeters >= 0 ? "+" : "-";
+        String diffDist = sign + FormatUtils.formatDistance(Math.abs(diffMeters), useMiles);
+        String pctStr = "";
+        if (prev.totalDistanceMeters > 100.0) {
+            double pct = (diffMeters / prev.totalDistanceMeters) * 100.0;
+            pctStr = String.format(Locale.US, " (%+.0f%%)", pct);
+        }
+        return String.format(
+                Locale.US,
+                "vs %s: %s (%d runs) • %s%s",
+                prevLabel,
+                FormatUtils.formatDistance(prev.totalDistanceMeters, useMiles),
+                prev.runCount,
+                diffDist,
+                pctStr
+        );
     }
 
     private MainActivity getHostActivity() {

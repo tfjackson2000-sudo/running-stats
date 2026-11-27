@@ -50,29 +50,41 @@
             <span class="num">TIME</span>
             <span class="num">DISTANCE</span>
           </div>
-          <div class="snap-row">
-            <span class="snap-period">This Week</span>
-            <span id="wkRuns" class="num bold">0</span>
-            <span id="wkTime" class="num muted-val">0m</span>
-            <span id="wkDistance" class="num bold accent">0.0 km</span>
+          <div class="snap-block">
+            <div class="snap-row">
+              <span class="snap-period">This Week</span>
+              <span id="wkRuns" class="num bold">0</span>
+              <span id="wkTime" class="num muted-val">0m</span>
+              <span id="wkDistance" class="num bold accent">0.0 km</span>
+            </div>
+            <div id="wkCompare" class="snap-compare">vs Last Week: --</div>
           </div>
-          <div class="snap-row">
-            <span class="snap-period">This Month</span>
-            <span id="moRuns" class="num bold">0</span>
-            <span id="moTime" class="num muted-val">0m</span>
-            <span id="moDistance" class="num bold accent">0.0 km</span>
+          <div class="snap-block">
+            <div class="snap-row">
+              <span class="snap-period">This Month</span>
+              <span id="moRuns" class="num bold">0</span>
+              <span id="moTime" class="num muted-val">0m</span>
+              <span id="moDistance" class="num bold accent">0.0 km</span>
+            </div>
+            <div id="moCompare" class="snap-compare">vs Last Month: --</div>
           </div>
-          <div class="snap-row">
-            <span class="snap-period">This Year</span>
-            <span id="yrRuns" class="num bold">0</span>
-            <span id="yrTime" class="num muted-val">0m</span>
-            <span id="yrDistance" class="num bold accent">0.0 km</span>
+          <div class="snap-block">
+            <div class="snap-row">
+              <span class="snap-period">This Year</span>
+              <span id="yrRuns" class="num bold">0</span>
+              <span id="yrTime" class="num muted-val">0m</span>
+              <span id="yrDistance" class="num bold accent">0.0 km</span>
+            </div>
+            <div id="yrCompare" class="snap-compare">vs Last Year: --</div>
           </div>
-          <div class="snap-row">
-            <span class="snap-period">All Time</span>
-            <span id="allRuns" class="num bold">0</span>
-            <span id="allTime" class="num muted-val">0m</span>
-            <span id="allDistance" class="num bold accent">0.0 km</span>
+          <div class="snap-block">
+            <div class="snap-row">
+              <span class="snap-period">All Time</span>
+              <span id="allRuns" class="num bold">0</span>
+              <span id="allTime" class="num muted-val">0m</span>
+              <span id="allDistance" class="num bold accent">0.0 km</span>
+            </div>
+            <div id="allCompare" class="snap-compare"></div>
           </div>
         </div>
         <div id="syncStatusLine" class="status-meta">Not connected yet</div>
@@ -110,7 +122,7 @@
 
       <div class="two-col-desktop">
         <div class="card">
-          <h2>Garmin Health &amp; Readiness</h2>
+          <h2 id="healthPeriodTitle">Garmin Health &amp; Readiness (This Year)</h2>
           <div class="totals-grid compact">
             <div class="total-cell">
               <span class="micro-label">VO2 MAX</span>
@@ -125,7 +137,7 @@
               <span id="healthHrv" class="med-value cyan">--</span>
             </div>
             <div class="total-cell">
-              <span class="micro-label">SLEEP (30D AVG)</span>
+              <span class="micro-label">SLEEP (AVG)</span>
               <span id="healthSleep" class="med-value">--</span>
             </div>
           </div>
